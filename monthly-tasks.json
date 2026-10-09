@@ -11,6 +11,12 @@
       "title": "דוח הוצאות לפנינה",
       "day": 1,
       "calendarEventId": ""
+    },
+    {
+      "id": "salary-transfer",
+      "title": "העברת כספים למשכורות עובדים",
+      "day": 10,
+      "calendarEventId": ""
     }
   ]
 }
