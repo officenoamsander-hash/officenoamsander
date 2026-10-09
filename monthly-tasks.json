@@ -23,6 +23,12 @@
       "title": "בקשה מנחמן להעביר חשבונית",
       "day": 1,
       "calendarEventId": ""
+    },
+    {
+      "id": "podguard-fee",
+      "title": "להוציא שכר טרחה מפודגארד ולשלוח במייל לארז",
+      "day": 1,
+      "calendarEventId": ""
     }
   ]
 }
