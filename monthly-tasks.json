@@ -17,6 +17,12 @@
       "title": "העברת כספים למשכורות עובדים",
       "day": 10,
       "calendarEventId": ""
+    },
+    {
+      "id": "nachman-invoice",
+      "title": "בקשה מנחמן להעביר חשבונית",
+      "day": 1,
+      "calendarEventId": ""
     }
   ]
 }
