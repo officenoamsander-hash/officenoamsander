@@ -114,6 +114,16 @@ function calLink(t) {
   const q = new URLSearchParams({ action: 'TEMPLATE', text: t.title, dates: `${d}/${iso(n).replace(/-/g, '')}`, details: [t.from && 'מאת: ' + t.from, t.link].filter(Boolean).join('\n') });
   return 'https://calendar.google.com/calendar/render?' + q;
 }
+function tplCalLink(t) {
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  const last = new Date(y, m + 1, 0).getDate();
+  const start = new Date(y, m, Math.min(t.day, last));
+  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const q = new URLSearchParams({ action: 'TEMPLATE', text: t.title,
+    dates: `${iso(start).replace(/-/g, '')}/${iso(end).replace(/-/g, '')}`,
+    recur: `RRULE:FREQ=MONTHLY;BYMONTHDAY=${t.day > 28 ? -1 : t.day}` });
+  return 'https://calendar.google.com/calendar/render?' + q;
+}
 const label = { email: 'מייל', manual: 'ידנית', monthly: 'חודשית' };
 const fmt = d => d ? d.split('-').reverse().join('/') : '';
 
@@ -140,7 +150,7 @@ function render() {
   }).join('') : '<div class="empty">אין משימות להצגה</div>';
 
   $('tplList').innerHTML = db.templates.length ? db.templates.map(t =>
-    `<div class="tpl"><span>${esc(t.title)} — כל ${t.day} בחודש</span><button class="link" data-deltpl="${t.id}">מחק</button></div>`).join('')
+    `<div class="tpl"><span>${esc(t.title)} — כל ${t.day} בחודש</span><span><a href="${esc(tplCalLink(t))}" target="_blank" rel="noopener">הוסף ליומן (חוזר)</a> <button class="link" data-deltpl="${t.id}">מחק</button></span></div>`).join('')
     : '<div class="empty">אין משימות חודשיות</div>';
 
   $('status').textContent = db.emailUpdated
