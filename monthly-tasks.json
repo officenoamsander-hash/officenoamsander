@@ -5,6 +5,12 @@
       "title": "דוח הכנסות לפנינה",
       "day": 1,
       "calendarEventId": ""
+    },
+    {
+      "id": "expense-report",
+      "title": "דוח הוצאות לפנינה",
+      "day": 1,
+      "calendarEventId": ""
     }
   ]
 }
