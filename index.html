@@ -60,6 +60,7 @@ a{color:var(--accent)}
     <button>הוסף</button>
   </form>
   <div id="tplList"></div>
+  <button class="ghost" id="exportTpl" style="margin-top:10px">ייצוא monthly-tasks.json לשגרה</button>
 </details>
 
 <div class="tabs" id="tabs">
@@ -91,11 +92,13 @@ try { Object.assign(db, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch 
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 let filter = 'open';
+let shared = []; // monthly templates from monthly-tasks.json (managed by the repo/routine)
+const allTpl = () => [...shared.map(t => ({ ...t, shared: true })), ...db.templates];
 
 function monthlyInstances() {
   const now = new Date(), y = now.getFullYear(), m = now.getMonth();
   const last = new Date(y, m + 1, 0).getDate();
-  return db.templates.map(t => ({
+  return allTpl().map(t => ({
     id: `mon-${t.id}-${y}-${pad(m+1)}`, title: t.title, src: 'monthly',
     due: iso(new Date(y, m, Math.min(t.day, last)))
   }));
@@ -149,8 +152,8 @@ function render() {
     </div>`;
   }).join('') : '<div class="empty">אין משימות להצגה</div>';
 
-  $('tplList').innerHTML = db.templates.length ? db.templates.map(t =>
-    `<div class="tpl"><span>${esc(t.title)} — כל ${t.day} בחודש</span><span><a href="${esc(tplCalLink(t))}" target="_blank" rel="noopener">הוסף ליומן (חוזר)</a> <button class="link" data-deltpl="${t.id}">מחק</button></span></div>`).join('')
+  $('tplList').innerHTML = allTpl().length ? allTpl().map(t =>
+    `<div class="tpl"><span>${esc(t.title)} — כל ${t.day} בחודש${t.shared ? ' (משותפת)' : ''}</span><span><a href="${esc(tplCalLink(t))}" target="_blank" rel="noopener">הוסף ליומן (חוזר)</a> ${t.shared ? '' : `<button class="link" data-deltpl="${t.id}">מחק</button>`}</span></div>`).join('')
     : '<div class="empty">אין משימות חודשיות</div>';
 
   $('status').textContent = db.emailUpdated
@@ -202,7 +205,19 @@ $('export').onclick = () => {
   a.download = 'tasks-backup.json'; a.click();
 };
 
-render(); loadEmailTasks();
+async function loadShared() {
+  try {
+    const r = await fetch('monthly-tasks.json?ts=' + Date.now(), { cache: 'no-store' });
+    if (r.ok) shared = (await r.json()).templates || [];
+  } catch (e) {}
+  render();
+}
+$('exportTpl').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ templates: allTpl().map(({ shared, ...t }) => t) }, null, 2)], { type: 'application/json' }));
+  a.download = 'monthly-tasks.json'; a.click();
+};
+render(); loadEmailTasks(); loadShared();
 </script>
 </body>
 </html>
