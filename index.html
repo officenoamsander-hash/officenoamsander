@@ -42,7 +42,7 @@ a{color:var(--accent)}
 <body>
 <main>
 <h1>מעקב משימות</h1>
-<div class="sub" id="status"></div>
+<div class="sub"><span id="status"></span> · <a href="https://calendar.google.com/calendar/u/0/r" target="_blank" rel="noopener">פתח יומן Google</a></div>
 
 <form class="card" id="addForm">
   <div class="row">
@@ -108,6 +108,12 @@ function allTasks() {
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function calLink(t) {
+  const d = t.due.replace(/-/g, '');
+  const n = new Date(t.due + 'T00:00:00'); n.setDate(n.getDate() + 1);
+  const q = new URLSearchParams({ action: 'TEMPLATE', text: t.title, dates: `${d}/${iso(n).replace(/-/g, '')}`, details: [t.from && 'מאת: ' + t.from, t.link].filter(Boolean).join('\n') });
+  return 'https://calendar.google.com/calendar/render?' + q;
+}
 const label = { email: 'מייל', manual: 'ידנית', monthly: 'חודשית' };
 const fmt = d => d ? d.split('-').reverse().join('/') : '';
 
@@ -125,6 +131,7 @@ function render() {
           <span class="badge b-${t.src}">${label[t.src]}</span>
           ${t.due ? `<span class="${over ? 'over' : ''}">יעד: ${fmt(t.due)}${over ? ' (באיחור)' : ''}</span>` : ''}
           ${t.from ? `<span>מאת: ${esc(t.from)}</span>` : ''}
+          ${t.due ? `<a href="${esc(calLink(t))}" target="_blank" rel="noopener">הוסף ליומן</a>` : ''}
           ${t.link ? `<a href="${esc(t.link)}" target="_blank" rel="noopener">פתח מייל</a>` : ''}
         </div>
       </div>
