@@ -1,3 +1,10 @@
 {
-  "templates": []
+  "templates": [
+    {
+      "id": "revenue-report",
+      "title": "דוח הכנסות לפנינה",
+      "day": 1,
+      "calendarEventId": ""
+    }
+  ]
 }
