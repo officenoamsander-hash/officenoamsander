@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מעקב משימות</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#1d2330;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb;--red:#dc2626;--green:#16a34a;--amber:#d97706;--purple:#7c3aed}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--text:#e6e9ef;--muted:#9aa3b2;--line:#2a3140;--accent:#60a5fa;--red:#f87171;--green:#4ade80;--amber:#fbbf24;--purple:#a78bfa}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.5rem;margin:0 0 4px}
+.sub{color:var(--muted);font-size:.85rem;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,button{font:inherit;color:inherit}
+input,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+input[type=text]{flex:1 1 200px}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+button.link{background:none;color:var(--muted);padding:2px 6px;font-size:.85rem}
+button.link:hover{color:var(--red)}
+.tabs{display:flex;gap:6px;margin:14px 0 10px;flex-wrap:wrap}
+.tabs button{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.task{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin-bottom:8px}
+.task input[type=checkbox]{width:20px;height:20px;margin-top:3px;flex:none}
+.task.done .t{text-decoration:line-through;color:var(--muted)}
+.t{font-weight:600;overflow-wrap:anywhere}
+.meta{font-size:.8rem;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.badge{border-radius:999px;padding:0 8px;font-size:.75rem;color:#fff}
+.b-email{background:var(--purple)}.b-manual{background:var(--accent)}.b-monthly{background:var(--amber)}
+.over{color:var(--red);font-weight:600}
+.grow{flex:1;min-width:0}
+details summary{cursor:pointer;font-weight:600}
+.tpl{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.empty{color:var(--muted);text-align:center;padding:24px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+<h1>מעקב משימות</h1>
+<div class="sub" id="status"></div>
+
+<form class="card" id="addForm">
+  <div class="row">
+    <input type="text" id="title" placeholder="משימה חדשה…" required>
+    <input type="date" id="due" title="תאריך יעד">
+    <button>הוסף</button>
+  </div>
+</form>
+
+<details class="card">
+  <summary>משימות חודשיות קבועות</summary>
+  <form class="row" id="tplForm" style="margin:10px 0">
+    <input type="text" id="tplTitle" placeholder="שם המשימה (למשל: דוח הכנסות לפנינה)" required>
+    <label>ביום <input type="number" id="tplDay" min="1" max="31" value="1" style="width:70px" required> בחודש</label>
+    <button>הוסף</button>
+  </form>
+  <div id="tplList"></div>
+</details>
+
+<div class="tabs" id="tabs">
+  <button data-f="open" class="on">פתוחות</button>
+  <button data-f="done">הושלמו</button>
+  <button data-f="all">הכל</button>
+</div>
+<div id="list"></div>
+
+<div class="card row" style="margin-top:20px">
+  <button class="ghost" id="reload">רענן משימות ממיילים</button>
+  <label class="ghost" style="cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:8px 14px;color:var(--muted)">
+    ייבוא email-tasks.json ידנית<input type="file" id="file" accept=".json" hidden>
+  </label>
+  <button class="ghost" id="export">גיבוי נתונים</button>
+</div>
+</main>
+
+<script>
+const KEY = 'tasktracker.v1';
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today = iso(new Date());
+
+// state: manual tasks, monthly templates, done map (task id -> true), email tasks cache
+let db = { manual: [], templates: [], done: {}, email: [], emailUpdated: null };
+try { Object.assign(db, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+let filter = 'open';
+
+function monthlyInstances() {
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  const last = new Date(y, m + 1, 0).getDate();
+  return db.templates.map(t => ({
+    id: `mon-${t.id}-${y}-${pad(m+1)}`, title: t.title, src: 'monthly',
+    due: iso(new Date(y, m, Math.min(t.day, last)))
+  }));
+}
+
+function allTasks() {
+  const email = db.email.map(e => ({ id: 'em-' + e.id, title: e.title, src: 'email', due: e.due || '', from: e.from, link: e.link, date: e.date }));
+  const manual = db.manual.map(t => ({ ...t, src: 'manual' }));
+  return [...email, ...manual, ...monthlyInstances()].map(t => ({ ...t, done: !!db.done[t.id] }));
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const label = { email: 'מייל', manual: 'ידנית', monthly: 'חודשית' };
+const fmt = d => d ? d.split('-').reverse().join('/') : '';
+
+function render() {
+  const tasks = allTasks()
+    .filter(t => filter === 'all' || (filter === 'done') === t.done)
+    .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+  $('list').innerHTML = tasks.length ? tasks.map(t => {
+    const over = !t.done && t.due && t.due < today;
+    return `<div class="task ${t.done ? 'done' : ''}">
+      <input type="checkbox" data-id="${esc(t.id)}" ${t.done ? 'checked' : ''}>
+      <div class="grow">
+        <div class="t">${esc(t.title)}</div>
+        <div class="meta">
+          <span class="badge b-${t.src}">${label[t.src]}</span>
+          ${t.due ? `<span class="${over ? 'over' : ''}">יעד: ${fmt(t.due)}${over ? ' (באיחור)' : ''}</span>` : ''}
+          ${t.from ? `<span>מאת: ${esc(t.from)}</span>` : ''}
+          ${t.link ? `<a href="${esc(t.link)}" target="_blank" rel="noopener">פתח מייל</a>` : ''}
+        </div>
+      </div>
+      ${t.src === 'manual' ? `<button class="link" data-del="${esc(t.id)}">מחק</button>` : ''}
+    </div>`;
+  }).join('') : '<div class="empty">אין משימות להצגה</div>';
+
+  $('tplList').innerHTML = db.templates.length ? db.templates.map(t =>
+    `<div class="tpl"><span>${esc(t.title)} — כל ${t.day} בחודש</span><button class="link" data-deltpl="${t.id}">מחק</button></div>`).join('')
+    : '<div class="empty">אין משימות חודשיות</div>';
+
+  $('status').textContent = db.emailUpdated
+    ? `סריקת מיילים אחרונה: ${new Date(db.emailUpdated).toLocaleString('he-IL')}`
+    : 'עדיין לא נטענו משימות ממיילים';
+}
+
+async function loadEmailTasks() {
+  try {
+    const r = await fetch('email-tasks.json?ts=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw 0;
+    mergeEmail(await r.json());
+  } catch (e) { render(); }
+}
+function mergeEmail(data) {
+  db.email = data.tasks || [];
+  db.emailUpdated = data.updated || new Date().toISOString();
+  save(); render();
+}
+
+$('addForm').onsubmit = e => {
+  e.preventDefault();
+  db.manual.push({ id: 'm-' + uid(), title: $('title').value.trim(), due: $('due').value });
+  e.target.reset(); save(); render();
+};
+$('tplForm').onsubmit = e => {
+  e.preventDefault();
+  db.templates.push({ id: uid(), title: $('tplTitle').value.trim(), day: +$('tplDay').value });
+  e.target.reset(); $('tplDay').value = 1; save(); render();
+};
+document.body.addEventListener('click', e => {
+  const t = e.target;
+  if (t.dataset.del) { db.manual = db.manual.filter(x => x.id !== t.dataset.del); delete db.done[t.dataset.del]; }
+  else if (t.dataset.deltpl) db.templates = db.templates.filter(x => x.id !== t.dataset.deltpl);
+  else if (t.dataset.f) { filter = t.dataset.f; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b === t)); }
+  else return;
+  save(); render();
+});
+$('list').addEventListener('change', e => {
+  const id = e.target.dataset.id; if (!id) return;
+  e.target.checked ? db.done[id] = true : delete db.done[id];
+  save(); render();
+});
+$('reload').onclick = loadEmailTasks;
+$('file').onchange = async e => { try { mergeEmail(JSON.parse(await e.target.files[0].text())); } catch (x) { alert('קובץ לא תקין'); } };
+$('export').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' }));
+  a.download = 'tasks-backup.json'; a.click();
+};
+
+render(); loadEmailTasks();
+</script>
+</body>
+</html>
