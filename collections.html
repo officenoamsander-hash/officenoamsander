@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מערכת גבייה</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--ink:#1c2433;--mute:#6b7689;--line:#e3e8f0;--pri:#2457d6;--ok:#14864a;--warn:#c27a00;--bad:#c62f2f;--okbg:#e4f5ec;--warnbg:#fff3d9;--badbg:#fde7e7;--pribg:#e7eefc}
+@media(prefers-color-scheme:dark){:root{--bg:#10141c;--card:#181e2a;--ink:#e8ecf4;--mute:#93a0b6;--line:#2a3345;--pri:#6b94ff;--ok:#4cc486;--warn:#f0b13e;--bad:#ff7b7b;--okbg:#14301f;--warnbg:#3a2d10;--badbg:#3b1b1b;--pribg:#1b2848}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header h1{font-size:18px;margin:0;margin-inline-end:auto}
+main{max-width:1200px;margin:0 auto;padding:16px}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 12px;border-radius:8px;cursor:pointer}
+button:hover{border-color:var(--pri)}
+.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+.sm{padding:3px 8px;font-size:13px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+label{display:block;font-size:13px;color:var(--mute);margin-bottom:3px}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tabs button.on{background:var(--pribg);border-color:var(--pri);color:var(--pri);font-weight:600}
+.grid{display:grid;gap:12px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi b{display:block;font-size:24px;margin-top:2px}
+.kpi span{color:var(--mute);font-size:13px}
+.bad{color:var(--bad)}.ok{color:var(--ok)}.warn{color:var(--warn)}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;text-align:start;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--mute);font-weight:600;white-space:nowrap;cursor:default}
+tr:hover td{background:var(--bg)}
+.tw{overflow-x:auto}
+.tag{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;white-space:nowrap}
+.t-ok{background:var(--okbg);color:var(--ok)}.t-warn{background:var(--warnbg);color:var(--warn)}.t-bad{background:var(--badbg);color:var(--bad)}.t-pri{background:var(--pribg);color:var(--pri)}
+.bar{display:flex;height:26px;border-radius:7px;overflow:hidden;background:var(--line);margin:8px 0}
+.bar div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;min-width:0}
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:18px;width:min(640px,94vw);max-height:90vh;overflow:auto}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.log{border-inline-start:3px solid var(--line);padding:2px 10px;margin:6px 0;font-size:14px}
+.mute{color:var(--mute);font-size:13px}
+.empty{text-align:center;color:var(--mute);padding:28px}
+h2{font-size:16px;margin:0 0 10px}
+@media(max-width:640px){.filters{grid-template-columns:1fr}th:nth-child(n+6),td:nth-child(n+6){display:none}}
+@media print{header,.tabs,button{display:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>💰 מערכת גבייה — ד"ר נעם סנדר הנדסה ורישוי</h1>
+  <button id="bAdd" class="pri">+ חוב חדש</button>
+  <button id="bImp">ייבוא CSV</button>
+  <button id="bExp">ייצוא CSV</button>
+  <button id="bBak">גיבוי</button>
+  <button id="bRes">שחזור</button>
+  <input type="file" id="fileIn" hidden>
+</header>
+<main>
+  <div class="tabs" id="tabs">
+    <button data-t="todo" class="on">📌 לטיפול היום</button>
+    <button data-t="all">כל החובות</button>
+    <button data-t="cust">לפי לקוח</button>
+    <button data-t="dash">סיכום וגיול חובות</button>
+    <button data-t="help">הגדרות והסבר</button>
+  </div>
+  <div id="view"></div>
+</main>
+
+<dialog id="dlg"></dialog>
+
+<script>
+"use strict";
+/* ---------- אחסון ---------- */
+const KEY="collections.v1";
+let S={items:[],cfg:{biz:'ד"ר נעם סנדר הנדסה ורישוי בע"מ',bank:'',terms:30,gap1:7,gap2:7,gap3:3}};
+const SEED=[{"id": "s1", "customer": "מלון מגדלה", "contact": "דניאל", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "הצעת המחיר: 45,000 ₪ + מע\"מ, בתשלומים 30% / 30% / 20% / 20% | תזכורת למחר | תזכורת למחר", "payments": [], "log": []}, {"id": "s2", "customer": "ליקווידיום", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "למצוא הצעת מחיר לגיא גרלניק", "payments": [], "log": []}, {"id": "s3", "customer": "מסעדה חלבית גדרה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 10000, "status": "", "notes": "לשאול את עוז גדרה מי מטפל ולשלם חצי מקדמה | 10,000 ₪ כולל מע\"מ", "payments": [], "log": []}, {"id": "s4", "customer": "פרישמן 42 - טנדס", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "הצעת המחיר: 25,000 ₪ + מע\"מ, שלושה סעיפים | חצי מקדמה", "payments": [], "log": []}, {"id": "s5", "customer": "מלון סטאי - רישוי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s6", "customer": "אבירם לגזיאל", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "נעם צריך לשבת איתו", "payments": [], "log": []}, {"id": "s7", "customer": "איציק הגדול", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "נעם צריך לשבת איתו", "payments": [], "log": []}, {"id": "s8", "customer": "פיצי רמת השרון", "contact": "חיים כהן", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 22000, "status": "", "notes": "לשלם ב 2 צקים אחד עכשיו והשני דחוי", "payments": [], "log": []}, {"id": "s9", "customer": "פיצי עזריאלי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 22000, "status": "", "notes": "כנ״ל", "payments": [], "log": []}, {"id": "s10", "customer": "יוניקו חולון", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 30000, "status": "", "notes": "נתי יוניקו לשאול מה שם החברה הכל בבת אחת | 30,000 ₪ + מע\"מ", "payments": [], "log": []}, {"id": "s11", "customer": "קורון פטיסרי - קיבוץ עברון", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s12", "customer": "מעדני נטלי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "נעם יפגוש אתו לקחת צ׳קים", "payments": [], "log": []}, {"id": "s13", "customer": "קומל ראש העין", "contact": "מתן רוזנברג", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s14", "customer": "ברוסטר צ'יקן עזריאלי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "לדבר איתה שתשלם", "payments": [], "log": []}, {"id": "s15", "customer": "קיבוץ דורות", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "להוציא הצעת מחיר", "payments": [], "log": []}, {"id": "s16", "customer": "פיטמאסטר יהוד", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 35000, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s17", "customer": "פיטמאסטר ראשון לציון", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "לא סוכם הסכום", "payments": [], "log": []}, {"id": "s18", "customer": "שניצל ראש העין", "contact": "ירון", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "הצעת המחיר: 14,000 ₪ + מע\"מ - 10,000 בתחילת העבודה, 4,000 עם קבלת הרישיון", "payments": [], "log": []}, {"id": "s19", "customer": "מיכל אנסקי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 15000, "status": "", "notes": "15,000 לא נשלחה הצעת מחיר", "payments": [], "log": []}, {"id": "s20", "customer": "קפה מצו חולון", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 7000, "status": "", "notes": "לשלוח הודעה נעם מחכה לחומר", "payments": [], "log": []}, {"id": "s21", "customer": "מסעדת מסקל פלורנטין", "contact": "ארליך זיו לביא", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "9000 ? לא ידוע | בהמתנה", "payments": [], "log": []}, {"id": "s22", "customer": "רשות העתיקות", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "שלחו פתיחת ספק להחזיר את הטפסים | שמולקי מרכוס הצעת מחיר", "payments": [], "log": []}, {"id": "s23", "customer": "אפריקה ישראל", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s24", "customer": "מלון פולי אורבן", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s25", "customer": "מלון אופרה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s26", "customer": "ענק הבשר", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 15000, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s27", "customer": "לחם הכפר - שימוש חורג", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s28", "customer": "דופלקס", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s29", "customer": "מיכל אפשטיין - איטס קונדיטוריה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s30", "customer": "איטס מזנון שינקין", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s31", "customer": "מפעל בית שאן", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "hold", "notes": "עדיין לא לגבות", "payments": [], "log": []}, {"id": "s40", "customer": "סבסטיאן הרצליה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "quote", "notes": "להוציא הצעת מחיר", "payments": [], "log": []}, {"id": "s41", "customer": "אוגיס רעננה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "quote", "notes": "", "payments": [], "log": []}, {"id": "s42", "customer": "קומל רעננה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "אמור לשלם לביולאב – 7,000 ₪; למצוא את החשבונית ולבקש מביולאב", "payments": [], "log": []}];
+let fresh=true;
+try{const r=localStorage.getItem(KEY);if(r){S=Object.assign(S,JSON.parse(r));fresh=false}}catch(e){}
+if(fresh){S.items=SEED;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){alert("לא ניתן לשמור בדפדפן — השתמש בגיבוי")}};
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+/* ---------- עזרים ---------- */
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ils=n=>"₪"+(Math.round(n*100)/100).toLocaleString("he-IL");
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*6e4);return z.toISOString().slice(0,10)};
+const pd=s=>{if(!s)return null;const d=new Date(s+"T00:00:00");return isNaN(d)?null:d};
+const fd=s=>{const d=pd(s);return d?d.toLocaleDateString("he-IL"):"—"};
+const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const days=(a,b)=>Math.round((a-b)/864e5);
+const open=i=>i.done?0:Math.max(0,i.amount-(i.payments||[]).reduce((s,p)=>s+p.amount,0));
+const isOpen=i=>!i.done&&(i.amount<=0||open(i)>0);
+const money=i=>i.amount>0?ils(open(i)):"סכום לא ידוע";
+const overdue=i=>{const d=pd(i.due);return d&&open(i)>0?Math.max(0,days(today(),d)):0};
+function status(i){
+  if(i.status==="legal")return["בטיפול משפטי","t-bad"];
+  if(i.status==="hold")return["בהמתנה – לא לפנות","t-pri"];
+  if(i.status==="quote")return["להוצאת הצעת מחיר","t-pri"];
+  if(!isOpen(i))return["שולם","t-ok"];
+  const pp=pd(i.promise);
+  if(pp&&pp>=today())return["הבטחת תשלום","t-pri"];
+  const o=overdue(i);
+  if(o>60)return["באיחור 60+","t-bad"];
+  if(o>0)return["באיחור "+o+" ימים","t-warn"];
+  return[i.due?"טרם הגיע מועד":"ממתין לפנייה ראשונה","t-pri"];
+}
+const nextAction=i=>{ // תאריך המעקב הבא
+  if(!isOpen(i)||i.status)return null;
+  const pp=pd(i.promise);if(pp&&pp>=today())return pp;
+  if(i.next)return pd(i.next);
+  const d=pd(i.due);return d?addDays(d,1):today();
+};
+const customers=()=>[...new Set(S.items.map(i=>i.customer))].sort((a,b)=>a.localeCompare(b,"he"));
+
+/* ---------- ניווט ---------- */
+let tab="todo",F={q:"",st:"open",sort:"over"};
+$("#tabs").onclick=e=>{const t=e.target.dataset.t;if(!t)return;tab=t;
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b===e.target));render()};
+function render(){({todo:vTodo,all:vAll,cust:vCust,dash:vDash,help:vHelp})[tab]();}
+
+/* ---------- תצוגות ---------- */
+function rowHTML(i){const[s,c]=status(i);const n=nextAction(i);
+  return `<tr><td><b>${esc(i.customer)}</b><div class="mute">${esc([i.contact,i.phone].filter(Boolean).join(" · "))}</div></td>
+  <td class="mute" style="max-width:260px">${esc(i.notes||"")}</td><td>${fd(i.due)}</td><td><b>${money(i)}</b>${i.amount>0&&open(i)<i.amount?`<div class="mute">מתוך ${ils(i.amount)}</div>`:""}</td>
+  <td><span class="tag ${c}">${s}</span></td><td>${n?fd(iso(n)):"—"}</td>
+  <td class="row" style="flex-wrap:nowrap"><button class="sm" onclick="contact('${i.id}')">📞 מעקב</button><button class="sm" onclick="pay('${i.id}')">💵 שולם</button><button class="sm" onclick="edit('${i.id}')">✏️</button></td></tr>`}
+const THEAD=`<thead><tr><th>לקוח</th><th>הערות</th><th>פירעון</th><th>יתרה</th><th>סטטוס</th><th>מעקב הבא</th><th></th></tr></thead>`;
+
+function vTodo(){
+  const t=today();
+  const list=S.items.filter(i=>{const n=nextAction(i);return n&&n<=t}).sort((a,b)=>overdue(b)-overdue(a)||open(b)-open(a));
+  const sum=list.reduce((s,i)=>s+open(i),0);
+  $("#view").innerHTML=`<div class="card"><h2>לטיפול היום (${list.length}) — ${ils(sum)}</h2>
+  <div class="mute" style="margin-bottom:8px">חובות שמועד המעקב שלהם הגיע או עבר. לאחר כל שיחה/הודעה לחץ "מעקב" ותעדכן תאריך המעקב הבא — כך החוב יוצא מהרשימה עד לתאריך שנקבע.</div>
+  ${list.length?`<div class="tw"><table>${THEAD}<tbody>${list.map(rowHTML).join("")}</tbody></table></div>`:'<div class="empty">🎉 אין משימות גבייה להיום</div>'}</div>
+  ${(()=>{const q=S.items.filter(i=>i.status==="quote");return q.length?`<div class="card" style="margin-top:12px"><h2>📝 להוצאת הצעת מחיר (${q.length})</h2><div class="tw"><table>${THEAD}<tbody>${q.map(rowHTML).join("")}</tbody></table></div></div>`:""})()}`;
+}
+function vAll(){
+  $("#view").innerHTML=`<div class="filters">
+  <input id="fq" placeholder="חיפוש לקוח / חשבונית / טלפון" value="${esc(F.q)}">
+  <select id="fs"><option value="open">פתוחים</option><option value="late">בפיגור</option><option value="paid">שולמו</option><option value="legal">משפטי</option><option value="hold">בהמתנה</option><option value="quote">הצעת מחיר</option><option value="all">הכול</option></select>
+  <select id="fo"><option value="over">מיון: ימי פיגור</option><option value="amt">מיון: סכום</option><option value="cust">מיון: לקוח</option><option value="due">מיון: פירעון</option></select></div>
+  <div class="card tw" id="tbl"></div>`;
+  $("#fs").value=F.st;$("#fo").value=F.sort;
+  const draw=()=>{
+    let l=S.items.filter(i=>{
+      const q=F.q.trim().toLowerCase();
+      if(q&&!(i.customer+" "+(i.invoice||"")+" "+(i.phone||"")).toLowerCase().includes(q))return false;
+      return F.st==="all"||(F.st==="open"&&isOpen(i)&&!i.status)||(F.st==="late"&&overdue(i)>0)||(F.st==="paid"&&!isOpen(i))||(["legal","hold","quote"].includes(F.st)&&i.status===F.st)});
+    const so={over:(a,b)=>overdue(b)-overdue(a),amt:(a,b)=>open(b)-open(a),cust:(a,b)=>a.customer.localeCompare(b.customer,"he"),due:(a,b)=>(a.due||"").localeCompare(b.due||"")};
+    l.sort(so[F.sort]);
+    $("#tbl").innerHTML=l.length?`<table>${THEAD}<tbody>${l.map(rowHTML).join("")}</tbody></table><div class="mute" style="margin-top:8px">${l.length} שורות · יתרה כוללת ${ils(l.reduce((s,i)=>s+open(i),0))}</div>`:'<div class="empty">אין נתונים. לחץ "+ חוב חדש" או "ייבוא CSV"</div>';
+  };
+  $("#fq").oninput=e=>{F.q=e.target.value;draw()};$("#fs").onchange=e=>{F.st=e.target.value;draw()};$("#fo").onchange=e=>{F.sort=e.target.value;draw()};
+  draw();
+}
+function vCust(){
+  const m={};S.items.forEach(i=>{const c=m[i.customer]??={n:i.customer,phone:i.phone,tot:0,late:0,max:0,cnt:0};
+    const o=open(i);c.tot+=o;if(isOpen(i)&&!i.status)c.cnt++;if(overdue(i)>0){c.late+=o;c.max=Math.max(c.max,overdue(i))}if(!c.phone&&i.phone)c.phone=i.phone});
+  const l=Object.values(m).filter(c=>c.cnt>0).sort((a,b)=>b.tot-a.tot);
+  $("#view").innerHTML=`<div class="card tw"><h2>חובות פתוחים לפי לקוח</h2>${l.length?`<table><thead><tr><th>לקוח</th><th>חשבוניות פתוחות</th><th>יתרה</th><th>מתוכה בפיגור</th><th>פיגור מקסימלי</th><th></th></tr></thead><tbody>${l.map(c=>`<tr><td><b>${esc(c.n)}</b><div class="mute">${esc(c.phone||"")}</div></td><td>${c.cnt}</td><td><b>${c.tot?ils(c.tot):"סכום לא ידוע"}</b></td><td class="${c.late?"bad":""}">${ils(c.late)}</td><td>${c.max?c.max+" ימים":"—"}</td><td><button class="sm" onclick="remind('${esc(c.n).replace(/'/g,"\\'")}')">✉️ תזכורת מרוכזת</button></td></tr>`).join("")}</tbody></table>`:'<div class="empty">אין חובות פתוחים</div>'}</div>`;
+}
+function vDash(){
+  const o=S.items.filter(i=>isOpen(i)&&!i.status);
+  const B=[["שוטף (לא באיחור)",0,0,"#2f9e66"],["1–30",1,30,"#d6a21a"],["31–60",31,60,"#e0731f"],["61–90",61,90,"#d24a3a"],["90+",91,1e9,"#8f1d2c"]];
+  const sums=B.map(([,a,b])=>o.filter(i=>{const d=overdue(i);return a===0?d===0:d>=a&&d<=b}).reduce((s,i)=>s+open(i),0));
+  const tot=sums.reduce((a,b)=>a+b,0),late=tot-sums[0];
+  const legal=S.items.filter(i=>i.status==="legal").reduce((s,i)=>s+open(i),0);
+  const m=new Date().getMonth(),y=new Date().getFullYear();
+  const paidM=S.items.flatMap(i=>i.payments||[]).filter(p=>{const d=pd(p.date);return d&&d.getMonth()===m&&d.getFullYear()===y}).reduce((s,p)=>s+p.amount,0);
+  const billed=S.items.filter(i=>i.amount>0).reduce((s,i)=>s+i.amount,0),coll=S.items.filter(i=>i.amount>0).reduce((s,i)=>s+i.amount-open(i),0);
+  const dso=(()=>{const x=o.filter(i=>pd(i.date)&&i.amount>0);return x.length?Math.round(x.reduce((s,i)=>s+days(today(),pd(i.date))*open(i),0)/x.reduce((s,i)=>s+open(i),0)):0})();
+  $("#view").innerHTML=`<div class="grid kpis">
+   <div class="card kpi"><span>לקוחות בטיפול / ללא סכום מוגדר</span><b>${o.length} / ${o.filter(i=>i.amount<=0).length}</b></div>
+   <div class="card kpi"><span>סה"כ חוב פתוח (סכומים ידועים)</span><b>${ils(tot)}</b></div>
+   <div class="card kpi"><span>מתוכו בפיגור</span><b class="bad">${ils(late)}</b></div>
+   <div class="card kpi"><span>נגבה החודש</span><b class="ok">${ils(paidM)}</b></div>
+   <div class="card kpi"><span>אחוז גבייה כולל</span><b>${billed?Math.round(coll/billed*100):0}%</b></div>
+   <div class="card kpi"><span>גיל חוב ממוצע (משוקלל)</span><b>${dso} ימים</b></div>
+   <div class="card kpi"><span>בטיפול משפטי</span><b>${ils(legal)}</b></div></div>
+  <div class="card"><h2>גיול חובות (ימי פיגור מתאריך הפירעון)</h2>
+   <div class="bar">${tot?B.map((b,k)=>sums[k]?`<div style="background:${b[3]};width:${sums[k]/tot*100}%">${Math.round(sums[k]/tot*100)}%</div>`:"").join(""):""}</div>
+   <table><tbody>${B.map((b,k)=>`<tr><td><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${b[3]}"></span> ${b[0]}</td><td><b>${ils(sums[k])}</b></td></tr>`).join("")}</tbody></table></div>`;
+}
+function vHelp(){
+  const c=S.cfg;
+  $("#view").innerHTML=`<div class="card"><h2>הגדרות</h2><div class="form">
+   <div><label>שם העסק (בהודעות)</label><input id="c_biz" value="${esc(c.biz)}"></div>
+   <div><label>פרטי תשלום (בנק / ביט / קישור סליקה)</label><input id="c_bank" value="${esc(c.bank)}" placeholder="למשל: בנק X סניף Y חשבון Z"></div>
+   <div><label>ימים בין תזכורת 1 ל-2</label><input type="number" id="c_gap1" value="${c.gap1}"></div>
+   <div><label>ימים בין תזכורת 2 ל-3</label><input type="number" id="c_gap2" value="${c.gap2}"></div>
+   <div><label>ימים בין תזכורות לאחר מכן</label><input type="number" id="c_gap3" value="${c.gap3}"></div></div>
+   <p><button class="pri" onclick="saveCfg()">שמירת הגדרות</button></p></div>
+  <div class="card" style="margin-top:12px"><h2>איך עובדים עם המערכת</h2>
+   <ol><li><b>נתוני התחלה:</b> נטענה רשימת הגבייה מ-7.10.2026. השלם טלפונים ואיש קשר דרך ✏️ בכל שורה.</li>
+   <li><b>ייבוא:</b> ייצא מ-SUMIT דוח "חייבים/חשבוניות פתוחות" ל-CSV (או הכן אקסל עם העמודות: לקוח, טלפון, אימייל, מס' חשבונית, תאריך, פירעון, סכום, שולם) ולחץ "ייבוא CSV".</li>
+   <li><b>כל בוקר:</b> פתח את "לטיפול היום" — זו כל העבודה. כל שורה = לקוח שצריך לפנות אליו.</li>
+   <li><b>אחרי כל פנייה:</b> "📞 מעקב" → רשום מה נאמר, תאריך הבטחת תשלום (אם יש) ומתי לחזור אליו. אפשר לשלוח בלחיצה וואטסאפ / מייל עם נוסח מוכן.</li>
+   <li><b>כשמגיע כסף:</b> "💵 תשלום" (גם חלקי). החוב יורד אוטומטית.</li>
+   <li><b>פעם בשבוע:</b> "סיכום וגיול" + גיבוי. הנתונים נשמרים בדפדפן בלבד, ולכן חשוב לגבות.</li></ol>
+   <p class="mute">סולם הסלמה מובנה: תזכורת ידידותית ביום אחרי הפירעון → תזכורת שנייה → שיחה טלפונית → מכתב התראה → העברה לטיפול משפטי (סטטוס "משפטי" בעריכת החוב).</p></div>`;
+}
+function saveCfg(){["biz","bank"].forEach(k=>S.cfg[k]=$("#c_"+k).value);["gap1","gap2","gap3"].forEach(k=>S.cfg[k]=+$("#c_"+k).value||7);save();alert("נשמר")}
+
+/* ---------- דיאלוגים ---------- */
+const dlg=$("#dlg");
+const show=h=>{dlg.innerHTML=h;dlg.showModal()};
+const close=()=>dlg.close();
+const get=id=>S.items.find(i=>i.id===id);
+
+function edit(id){
+  const i=id?get(id):{customer:"",phone:"",email:"",invoice:"",date:"",due:"",amount:"",notes:"",status:"",payments:[]};
+  show(`<h2>${id?"עריכת חוב":"חוב חדש"}</h2><div class="form">
+   <div><label>פרויקט / לקוח *</label><input id="e_customer" list="cl" value="${esc(i.customer)}"><datalist id="cl">${customers().map(c=>`<option value="${esc(c)}">`).join("")}</datalist></div>
+   <div><label>איש קשר</label><input id="e_contact" value="${esc(i.contact||"")}"></div>
+   <div><label>טלפון (וואטסאפ)</label><input id="e_phone" value="${esc(i.phone)}" inputmode="tel"></div>
+   <div><label>אימייל</label><input id="e_email" value="${esc(i.email)}" type="email"></div>
+   <div><label>מס' חשבונית</label><input id="e_invoice" value="${esc(i.invoice)}"></div>
+   <div><label>תאריך חשבונית</label><input id="e_date" type="date" value="${esc(i.date)}"></div>
+   <div><label>תאריך פירעון</label><input id="e_due" type="date" value="${esc(i.due)}"></div>
+   <div><label>סכום כולל (₪) — ריק אם לא ידוע</label><input id="e_amount" type="number" step="0.01" value="${esc(i.amount)}"></div>
+   <div><label>סטטוס</label><select id="e_status"><option value="">רגיל</option><option value="hold">בהמתנה – עדיין לא לפנות</option><option value="quote">להוצאת הצעת מחיר</option><option value="legal">בטיפול משפטי</option></select></div></div>
+   <div style="margin-top:10px"><label>הערות</label><textarea id="e_notes" rows="2">${esc(i.notes)}</textarea></div>
+   <div class="row" style="margin-top:14px"><button class="pri" onclick="saveItem('${id||""}')">שמירה</button><button onclick="close()">ביטול</button>
+   ${id?`<button class="bad" style="margin-inline-start:auto" onclick="delItem('${id}')">מחיקה</button>`:""}</div>`);
+  $("#e_status").value=i.status||"";
+}
+function saveItem(id){
+  const g=k=>$("#e_"+k).value.trim();
+  if(!g("customer"))return alert("חובה למלא שם לקוח / פרויקט");
+  const o=id?get(id):{id:uid(),payments:[],log:[]};
+  Object.assign(o,{customer:g("customer"),contact:g("contact"),phone:g("phone"),email:g("email"),invoice:g("invoice"),date:g("date"),due:g("due"),amount:+g("amount")||0,status:g("status"),notes:g("notes")});
+  if(!id)S.items.push(o);
+  save();close();render();
+}
+function delItem(id){if(confirm("למחוק את החוב?")){S.items=S.items.filter(i=>i.id!==id);save();close();render()}}
+
+function pay(id){
+  const i=get(id);
+  show(`<h2>רישום תשלום — ${esc(i.customer)}</h2><p class="mute">${i.invoice?"חשבונית "+esc(i.invoice)+" · ":""}יתרה ${money(i)}</p>
+   <div class="form"><div><label>סכום ששולם</label><input id="p_amt" type="number" step="0.01" value="${open(i)||""}"></div>
+   <div><label>תאריך</label><input id="p_date" type="date" value="${iso(today())}"></div>
+   <div><label>אמצעי</label><select id="p_m"><option>העברה בנקאית</option><option>אשראי</option><option>צ'ק</option><option>ביט/פייבוקס</option><option>מזומן</option></select></div></div>
+   ${(i.payments||[]).length?`<h2 style="margin-top:14px">תשלומים קודמים</h2>${i.payments.map((p,k)=>`<div class="log">${fd(p.date)} · ${ils(p.amount)} · ${esc(p.method||"")} <button class="sm" onclick="delPay('${id}',${k})">הסר</button></div>`).join("")}`:""}
+   <div class="row" style="margin-top:14px"><button class="pri" onclick="savePay('${id}')">שמירה</button>${i.amount<=0?`<span class="mute">סכום לא הוגדר – הסכום ששולם יהפוך לסכום החוב וייסגר</span>`:""}<button onclick="close()">ביטול</button></div>`);
+}
+function savePay(id){const i=get(id),a=+$("#p_amt").value;if(!(a>0))return;
+  if(i.amount<=0){i.amount=a;i.done=true}
+  (i.payments??=[]).push({amount:Math.min(a,open(i)||a),date:$("#p_date").value,method:$("#p_m").value});
+  if(i.amount>0&&open(i)<=0)i.done=true;
+  (i.log??=[]).unshift({d:$("#p_date").value,t:"payment",txt:`התקבל תשלום ${ils(a)}`});
+  save();close();render()}
+function delPay(id,k){const i=get(id);i.payments.splice(k,1);i.done=false;save();pay(id);render()}
+
+/* ---------- הודעות ---------- */
+function msgFor(i,level){
+  const c=S.cfg,o=overdue(i),amt=i.amount>0?ils(open(i)):"(לפי ההסכם)",inv=i.invoice?` מס' ${i.invoice}`:"";
+  const pay=c.bank?`\nפרטי תשלום: ${c.bank}`:"";
+  if(level===0)return `שלום ${i.contact||i.customer}, תזכורת ידידותית בנוגע לתשלום עבור ${i.customer}${inv}, על סך ${amt}${i.due?(o?", שהיה אמור להיפרע ב-"+fd(i.due):", שיפרע ב-"+fd(i.due)):""}. אם כבר שולם – תודה והתעלמו מהודעה זו.${pay}\n${c.biz}`;
+  if(level===1)return `שלום ${i.contact||i.customer}, פנייה חוזרת בנוגע לתשלום עבור ${i.customer}${inv} על סך ${amt}${o?`, שנמצא בפיגור של ${o} ימים`:""}. נשמח לעדכון על מועד התשלום.${pay}\n${c.biz}`;
+  return `${i.contact||i.customer} שלום, התשלום עבור ${i.customer}${inv} על סך ${amt} עדיין פתוח${o?` (פיגור ${o} ימים)`:""}. נבקש להסדיר את התשלום עד ${fd(iso(addDays(today(),5)))}, אחרת נאלץ לשקול המשך טיפול.${pay}\n${c.biz}`;
+}
+const waLink=(ph,txt)=>{let p=String(ph||"").replace(/\D/g,"");if(p.startsWith("0"))p="972"+p.slice(1);return `https://wa.me/${p}?text=${encodeURIComponent(txt)}`};
+
+function contact(id){
+  const i=get(id),n=(i.log||[]).filter(l=>l.t==="contact").length,lvl=Math.min(n,2);
+  const gap=n===0?S.cfg.gap1:n===1?S.cfg.gap2:S.cfg.gap3;
+  show(`<h2>מעקב — ${esc(i.customer)} · ${money(i)}</h2>
+   <p class="mute">${esc(status(i)[0])} · פניות עד כה: ${n}${i.phone?" · "+esc(i.phone):""}${i.notes?" · "+esc(i.notes):""}</p>
+   <label>נוסח הודעה (${["תזכורת ידידותית","פנייה חוזרת","התראה אחרונה"][lvl]})</label>
+   <textarea id="m_txt" rows="5">${esc(msgFor(i,lvl))}</textarea>
+   <div class="row" style="margin:8px 0 14px"><button onclick="sendWA('${id}')" ${i.phone?"":"disabled"}>💬 וואטסאפ</button><button onclick="sendMail('${id}')" ${i.email?"":"disabled"}>✉️ מייל</button><button onclick="navigator.clipboard.writeText($('#m_txt').value)">📋 העתק</button></div>
+   <h2>רישום הפנייה</h2><div class="form">
+   <div><label>סוג</label><select id="k_ch"><option>שיחה</option><option>וואטסאפ</option><option>מייל</option><option>פגישה</option><option>אין מענה</option></select></div>
+   <div><label>הבטחת תשלום עד</label><input id="k_pr" type="date" value="${esc(i.promise||"")}"></div>
+   <div><label>לחזור אליו בתאריך</label><input id="k_nx" type="date" value="${iso(addDays(today(),gap))}"></div></div>
+   <div style="margin-top:10px"><label>מה נאמר</label><textarea id="k_note" rows="2"></textarea></div>
+   <div class="row" style="margin-top:12px"><button class="pri" onclick="saveContact('${id}')">שמירת פנייה</button><button onclick="close()">סגירה</button></div>
+   ${(i.log||[]).length?`<h2 style="margin-top:16px">היסטוריה</h2>${i.log.map(l=>`<div class="log"><span class="mute">${fd(l.d)}</span> ${esc(l.txt)}</div>`).join("")}`:""}`);
+}
+function sendWA(id){const i=get(id);window.open(waLink(i.phone,$("#m_txt").value),"_blank")}
+function sendMail(id){const i=get(id);location.href=`mailto:${i.email}?subject=${encodeURIComponent("תזכורת תשלום — חשבונית "+(i.invoice||""))}&body=${encodeURIComponent($("#m_txt").value)}`}
+function saveContact(id){
+  const i=get(id);
+  i.promise=$("#k_pr").value;i.next=$("#k_nx").value;
+  (i.log??=[]).unshift({d:iso(today()),t:"contact",txt:`${$("#k_ch").value}${$("#k_note").value?": "+$("#k_note").value:""}${i.promise?" · הבטיח עד "+fd(i.promise):""}`});
+  save();close();render()}
+function remind(name){
+  const l=S.items.filter(i=>i.customer===name&&isOpen(i));
+  const txt=`שלום ${name}, ריכוז חשבוניות פתוחות:\n`+l.map(i=>`• ${i.invoice?"חשבונית "+i.invoice:i.customer} · ${i.due?"פירעון "+fd(i.due)+" · ":""}${money(i)}`).join("\n")+`\nסה"כ לתשלום: ${ils(l.reduce((s,i)=>s+open(i),0))}`+(S.cfg.bank?`\nפרטי תשלום: ${S.cfg.bank}`:"")+`\nתודה, ${S.cfg.biz}`;
+  const ph=(l.find(i=>i.phone)||{}).phone,em=(l.find(i=>i.email)||{}).email;
+  show(`<h2>תזכורת מרוכזת — ${esc(name)}</h2><textarea id="m_txt" rows="9">${esc(txt)}</textarea>
+   <div class="row" style="margin-top:10px"><button ${ph?"":"disabled"} onclick="window.open(waLink('${esc(ph||"")}',$('#m_txt').value),'_blank')">💬 וואטסאפ</button>
+   <button ${em?"":"disabled"} onclick="location.href='mailto:${esc(em||"")}?subject='+encodeURIComponent('ריכוז חשבוניות פתוחות')+'&body='+encodeURIComponent($('#m_txt').value)">✉️ מייל</button>
+   <button onclick="navigator.clipboard.writeText($('#m_txt').value)">📋 העתק</button><button onclick="close()">סגירה</button></div>`);
+}
+
+/* ---------- CSV / גיבוי ---------- */
+function parseCSV(t){
+  t=t.replace(/^﻿/,"");const first=t.split("\n")[0];const sep=first.includes("\t")?"\t":first.split(";").length>first.split(",").length?";":",";
+  const rows=[];let r=[],f="",q=false;
+  for(let k=0;k<t.length;k++){const ch=t[k];
+    if(q){if(ch==='"'){if(t[k+1]==='"'){f+='"';k++}else q=false}else f+=ch}
+    else if(ch==='"')q=true;else if(ch===sep){r.push(f);f=""}
+    else if(ch==="\n"){r.push(f.replace(/\r$/,""));rows.push(r);r=[];f=""}else f+=ch}
+  if(f||r.length){r.push(f);rows.push(r)}return rows.filter(r=>r.some(x=>x.trim()))}
+const HM={customer:["לקוח","שם לקוח","שם","customer","name"],phone:["טלפון","נייד","phone","mobile"],email:["אימייל","מייל","email"],invoice:["מס' חשבונית","מספר חשבונית","חשבונית","מספר מסמך","מסמך","invoice"],date:["תאריך","תאריך חשבונית","תאריך מסמך","date"],due:["פירעון","תאריך פירעון","תשלום עד","due"],amount:["סכום","סה\"כ","סהכ","לתשלום","amount","total"],paid:["שולם","שולם עד כה","paid"]};
+function normDate(s){s=(s||"").trim();if(!s)return"";let m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);if(m){let y=+m[3];if(y<100)y+=2000;return `${y}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:""}
+const num=s=>parseFloat(String(s||"").replace(/[₪,\s]/g,""))||0;
+function importCSV(text){
+  const rows=parseCSV(text);if(rows.length<2)return alert("הקובץ ריק");
+  const h=rows[0].map(x=>x.trim());const idx={};
+  for(const k in HM)idx[k]=h.findIndex(x=>HM[k].some(a=>x===a||x.includes(a)&&k!=="date"||x===a));
+  if(idx.customer<0||idx.amount<0)return alert("לא נמצאו עמודות 'לקוח' ו-'סכום' בשורת הכותרת");
+  let n=0,dup=0;
+  rows.slice(1).forEach(r=>{
+    const v=k=>idx[k]>=0?(r[idx[k]]||"").trim():"";
+    const amount=num(v("amount"));if(!v("customer")||amount<=0)return;
+    if(v("invoice")&&S.items.some(i=>i.invoice===v("invoice")&&i.customer===v("customer"))){dup++;return}
+    const date=normDate(v("date"))||iso(today());
+    const it={id:uid(),customer:v("customer"),phone:v("phone"),email:v("email"),invoice:v("invoice"),date,due:normDate(v("due"))||iso(addDays(pd(date),S.cfg.terms)),amount,status:"",notes:"",payments:[],log:[]};
+    const paid=num(v("paid"));if(paid>0)it.payments.push({amount:Math.min(paid,amount),date:iso(today()),method:"יבוא"});
+    S.items.push(it);n++});
+  save();render();alert(`יובאו ${n} חובות${dup?` · דולגו ${dup} כפולים`:""}`);
+}
+const dl=(name,txt,type)=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()};
+$("#bAdd").onclick=()=>edit();
+let mode="";
+$("#bImp").onclick=()=>{mode="csv";$("#fileIn").accept=".csv,.txt,.tsv";$("#fileIn").click()};
+$("#bRes").onclick=()=>{mode="json";$("#fileIn").accept=".json";$("#fileIn").click()};
+$("#fileIn").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const t=await f.text();
+  if(mode==="csv")importCSV(t);else try{const d=JSON.parse(t);if(!d.items)throw 0;if(confirm("לשחזר? הנתונים הנוכחיים יוחלפו"))S=d,save(),render()}catch{alert("קובץ גיבוי לא תקין")}};
+$("#bBak").onclick=()=>dl(`גיבוי-גבייה-${iso(today())}.json`,JSON.stringify(S),"application/json");
+$("#bExp").onclick=()=>{const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  dl(`גבייה-${iso(today())}.csv`,"﻿"+["לקוח,טלפון,אימייל,חשבונית,תאריך,פירעון,סכום,שולם,יתרה,ימי פיגור"].concat(S.items.map(i=>[i.customer,i.phone,i.email,i.invoice,i.date,i.due,i.amount,i.amount-open(i),open(i),overdue(i)].map(q).join(","))).join("\n"),"text/csv")};
+
+render();
+</script>
+</body>
+</html>
