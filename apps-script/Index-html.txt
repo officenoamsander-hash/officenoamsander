@@ -121,6 +121,26 @@ const nextAction=i=>{ // תאריך המעקב הבא
   if(i.next)return pd(i.next);
   const d=pd(i.due);return d?addDays(d,1):today();
 };
+/* ---------- שלבי תשלום, מסלול חשבוניות, מי צריך לפעול ---------- */
+const VAT=1.18;
+const ST=["עוד לא הגיע מועד","לגבייה","הבטיח","הועבר – לא נקלט","צ'ק – ממתין לאיסוף","צ'ק הופקד","צ'ק חזר","התקבל בבנק"];
+const INV=["לא הוצאה","חשבונית עסקה – יצאה","נשלחה ללקוח","חשבונית מס קבלה – יצאה"];
+const WAIT={"":"—",noam:"ממתין לנעם",margalit:"ממתין למרגלית",client:"ממתין ללקוח"};
+const gross=s=>Math.round((s.incl?+s.amount:+s.amount*VAT)*100)/100;
+const curStage=i=>(i.stages||[]).find(s=>s.st!=="התקבל בבנק");
+function flags(i){
+  if(i.status||i.done&&!(i.stages||[]).length)return[];
+  const f=[];
+  (i.stages||[]).forEach(s=>{const n=` (${s.label})`;
+    if(s.st==="הועבר – לא נקלט")f.push(["לוודא בבנק"+n,"t-warn"]);
+    if(s.st==="צ'ק – ממתין לאיסוף")f.push(["לאסוף צ'ק"+n,"t-warn"]);
+    if(s.st==="צ'ק הופקד")f.push(["לוודא שהצ'ק נקלט"+n,"t-pri"]);
+    if(s.st==="צ'ק חזר")f.push(["צ'ק חזר!"+n,"t-bad"]);
+    if(s.st==="התקבל בבנק"&&s.inv!==INV[3])f.push(["להוציא מס קבלה"+n,"t-warn"]);
+    if((s.st==="לגבייה"||s.st==="הבטיח")&&s.inv===INV[0])f.push(["להוציא חשבונית עסקה"+n,"t-warn"]);
+  });
+  return f;
+}
 const customers=()=>[...new Set(S.items.map(i=>i.customer))].sort((a,b)=>a.localeCompare(b,"he"));
 
 /* ---------- ניווט ---------- */
@@ -132,24 +152,28 @@ function render(){({todo:vTodo,all:vAll,cust:vCust,dash:vDash,help:vHelp})[tab](
 /* ---------- תצוגות ---------- */
 function rowHTML(i){const[s,c]=status(i);const n=nextAction(i);
   return `<tr><td><b>${esc(i.customer)}</b><div class="mute">${esc([i.contact,i.phone].filter(Boolean).join(" · "))}</div></td>
-  <td class="mute" style="max-width:260px">${esc(i.notes||"")}</td><td>${fd(i.due)}</td><td><b>${money(i)}</b>${i.amount>0&&open(i)<i.amount?`<div class="mute">מתוך ${ils(i.amount)}</div>`:""}</td>
-  <td><span class="tag ${c}">${s}</span></td><td>${n?fd(iso(n)):"—"}</td>
-  <td class="row" style="flex-wrap:nowrap"><button class="sm" onclick="contact('${i.id}')">📞 מעקב</button><button class="sm" onclick="pay('${i.id}')">💵 שולם</button><button class="sm" onclick="edit('${i.id}')">✏️</button></td></tr>`}
+  <td class="mute" style="max-width:260px">${esc(i.notes||"")}</td><td>${fd(i.due)}</td><td><b>${money(i)}</b>${i.amount>0&&open(i)<i.amount?`<div class="mute">מתוך ${ils(i.amount)}</div>`:""}${(i.stages||[]).length?`<div class="mute">${i.stages.map(x=>esc(x.label)+(x.st==="התקבל בבנק"?" ✔":" …")).join(" · ")}</div>`:""}</td>
+  <td><span class="tag ${c}">${s}</span>${i.waiting?` <span class="tag t-pri">${WAIT[i.waiting]}</span>`:""}${flags(i).map(x=>`<div><span class="tag ${x[1]}">${esc(x[0])}</span></div>`).join("")}</td><td>${n?fd(iso(n)):"—"}</td>
+  <td class="row" style="flex-wrap:nowrap"><button class="sm" onclick="contact('${i.id}')">📞 מעקב</button><button class="sm" onclick="stages('${i.id}')">🧩 שלבים</button><button class="sm" onclick="pay('${i.id}')">💵 שולם</button><button class="sm" onclick="edit('${i.id}')">✏️</button></td></tr>`}
 const THEAD=`<thead><tr><th>לקוח</th><th>הערות</th><th>פירעון</th><th>יתרה</th><th>סטטוס</th><th>מעקב הבא</th><th></th></tr></thead>`;
 
 function vTodo(){
   const t=today();
-  const list=S.items.filter(i=>{const n=nextAction(i);return n&&n<=t}).sort((a,b)=>overdue(b)-overdue(a)||open(b)-open(a));
+  const list=S.items.filter(i=>{if(i.waiting==="noam")return false;const n=nextAction(i);return(n&&n<=t)||flags(i).length}).sort((a,b)=>flags(b).length-flags(a).length||overdue(b)-overdue(a)||open(b)-open(a));
   const sum=list.reduce((s,i)=>s+open(i),0);
   $("#view").innerHTML=`<div class="card"><h2>לטיפול היום (${list.length}) — ${ils(sum)}</h2>
   <div class="mute" style="margin-bottom:8px">חובות שמועד המעקב שלהם הגיע או עבר. לאחר כל שיחה/הודעה לחץ "מעקב" ותעדכן תאריך המעקב הבא — כך החוב יוצא מהרשימה עד לתאריך שנקבע.</div>
   ${list.length?`<div class="tw"><table>${THEAD}<tbody>${list.map(rowHTML).join("")}</tbody></table></div>`:'<div class="empty">🎉 אין משימות גבייה להיום</div>'}</div>
+  ${(()=>{const w=S.items.filter(i=>i.waiting==="noam"&&isOpen(i));return w.length?`<div class="card" style="margin-top:12px"><h2>🗣️ ממתין לנעם (${w.length})</h2><div class="tw"><table>${THEAD}<tbody>${w.map(rowHTML).join("")}</tbody></table></div><p><button class="sm" onclick="copyNoam()">📋 העתק רשימה לשליחה לנעם</button></p></div>`:""})()}
   ${(()=>{const q=S.items.filter(i=>i.status==="quote");return q.length?`<div class="card" style="margin-top:12px"><h2>📝 להוצאת הצעת מחיר (${q.length})</h2><div class="tw"><table>${THEAD}<tbody>${q.map(rowHTML).join("")}</tbody></table></div></div>`:""})()}`;
 }
+function copyNoam(){const w=S.items.filter(i=>i.waiting==="noam"&&isOpen(i));
+  const txt="נעם, לטיפולך:\n"+w.map((i,k)=>`${k+1}. ${i.customer}${i.contact?" ("+i.contact+")":""} – ${money(i)}${i.notes?" – "+i.notes:""}`).join("\n");
+  navigator.clipboard.writeText(txt).then(()=>alert("הועתק"))}
 function vAll(){
   $("#view").innerHTML=`<div class="filters">
   <input id="fq" placeholder="חיפוש לקוח / חשבונית / טלפון" value="${esc(F.q)}">
-  <select id="fs"><option value="open">פתוחים</option><option value="late">בפיגור</option><option value="paid">שולמו</option><option value="legal">משפטי</option><option value="hold">בהמתנה</option><option value="quote">הצעת מחיר</option><option value="all">הכול</option></select>
+  <select id="fs"><option value="open">פתוחים</option><option value="late">בפיגור</option><option value="paid">שולמו</option><option value="legal">משפטי</option><option value="hold">בהמתנה</option><option value="quote">הצעת מחיר</option><option value="w_noam">ממתין לנעם</option><option value="w_margalit">ממתין למרגלית</option><option value="w_client">ממתין ללקוח</option><option value="all">הכול</option></select>
   <select id="fo"><option value="over">מיון: ימי פיגור</option><option value="amt">מיון: סכום</option><option value="cust">מיון: לקוח</option><option value="due">מיון: פירעון</option></select></div>
   <div class="card tw" id="tbl"></div>`;
   $("#fs").value=F.st;$("#fo").value=F.sort;
@@ -157,7 +181,7 @@ function vAll(){
     let l=S.items.filter(i=>{
       const q=F.q.trim().toLowerCase();
       if(q&&!(i.customer+" "+(i.invoice||"")+" "+(i.phone||"")).toLowerCase().includes(q))return false;
-      return F.st==="all"||(F.st==="open"&&isOpen(i)&&!i.status)||(F.st==="late"&&overdue(i)>0)||(F.st==="paid"&&!isOpen(i))||(["legal","hold","quote"].includes(F.st)&&i.status===F.st)});
+      return F.st==="all"||(F.st==="open"&&isOpen(i)&&!i.status)||(F.st==="late"&&overdue(i)>0)||(F.st==="paid"&&!isOpen(i))||(["legal","hold","quote"].includes(F.st)&&i.status===F.st)||(F.st.startsWith("w_")&&isOpen(i)&&i.waiting===F.st.slice(2))});
     const so={over:(a,b)=>overdue(b)-overdue(a),amt:(a,b)=>open(b)-open(a),cust:(a,b)=>a.customer.localeCompare(b.customer,"he"),due:(a,b)=>(a.due||"").localeCompare(b.due||"")};
     l.sort(so[F.sort]);
     $("#tbl").innerHTML=l.length?`<table>${THEAD}<tbody>${l.map(rowHTML).join("")}</tbody></table><div class="mute" style="margin-top:8px">${l.length} שורות · יתרה כוללת ${ils(l.reduce((s,i)=>s+open(i),0))}</div>`:'<div class="empty">אין נתונים. לחץ "+ חוב חדש" או "ייבוא CSV"</div>';
@@ -229,18 +253,22 @@ function edit(id){
    <div><label>מס' חשבונית</label><input id="e_invoice" value="${esc(i.invoice)}"></div>
    <div><label>תאריך חשבונית</label><input id="e_date" type="date" value="${esc(i.date)}"></div>
    <div><label>תאריך פירעון</label><input id="e_due" type="date" value="${esc(i.due)}"></div>
-   <div><label>סכום כולל (₪) — ריק אם לא ידוע</label><input id="e_amount" type="number" step="0.01" value="${esc(i.amount)}"></div>
+   <div><label>סכום כולל (₪) — ריק אם לא ידוע${(i.stages||[]).length?" (מחושב משלבי התשלום)":""}</label><input id="e_amount" type="number" step="0.01" value="${esc(i.amount)}" ${(i.stages||[]).length?"disabled":""}></div>
+   <div><label>ממתין ל</label><select id="e_waiting">${Object.entries(WAIT).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div>
+   <div><label>שם חברה לחשבונית</label><input id="e_company" value="${esc(i.company||"")}"></div>
+   <div><label>ח.פ. / ע.מ.</label><input id="e_hp" value="${esc(i.hp||"")}" inputmode="numeric"></div>
+   <div><label>אימייל לשליחת חשבונית</label><input id="e_billEmail" value="${esc(i.billEmail||"")}" type="email"></div>
    <div><label>סטטוס</label><select id="e_status"><option value="">רגיל</option><option value="hold">בהמתנה – עדיין לא לפנות</option><option value="quote">להוצאת הצעת מחיר</option><option value="legal">בטיפול משפטי</option></select></div></div>
    <div style="margin-top:10px"><label>הערות</label><textarea id="e_notes" rows="2">${esc(i.notes)}</textarea></div>
    <div class="row" style="margin-top:14px"><button class="pri" onclick="saveItem('${id||""}')">שמירה</button><button onclick="close()">ביטול</button>
    ${id?`<button class="bad" style="margin-inline-start:auto" onclick="delItem('${id}')">מחיקה</button>`:""}</div>`);
-  $("#e_status").value=i.status||"";
+  $("#e_status").value=i.status||"";$("#e_waiting").value=i.waiting||"";
 }
 function saveItem(id){
   const g=k=>$("#e_"+k).value.trim();
   if(!g("customer"))return alert("חובה למלא שם לקוח / פרויקט");
   const o=id?get(id):{id:uid(),payments:[],log:[]};
-  Object.assign(o,{customer:g("customer"),contact:g("contact"),phone:g("phone"),email:g("email"),invoice:g("invoice"),date:g("date"),due:g("due"),amount:+g("amount")||0,status:g("status"),notes:g("notes")});
+  Object.assign(o,{customer:g("customer"),contact:g("contact"),phone:g("phone"),email:g("email"),invoice:g("invoice"),date:g("date"),due:g("due"),amount:(o.stages||[]).length?o.amount:(+g("amount")||0),status:g("status"),notes:g("notes"),waiting:g("waiting"),company:g("company"),hp:g("hp"),billEmail:g("billEmail")});
   if(!id)S.items.push(o);
   save();close();render();
 }
@@ -263,9 +291,43 @@ function savePay(id){const i=get(id),a=+$("#p_amt").value;if(!(a>0))return;
   save();close();render()}
 function delPay(id,k){const i=get(id);i.payments.splice(k,1);i.done=false;save();pay(id);render()}
 
+/* ---------- שלבי תשלום ---------- */
+let SD=null;
+function stages(id){const i=get(id);SD={id,list:JSON.parse(JSON.stringify(i.stages||[]))};drawStages()}
+function drawStages(){
+  const i=get(SD.id);
+  const sel=(arr,v,k,n)=>`<select onchange="SD.list[${k}].${n}=this.value;drawStages()">${arr.map(x=>`<option ${x===v?"selected":""}>${esc(x)}</option>`).join("")}</select>`;
+  show(`<h2>שלבי תשלום — ${esc(i.customer)}</h2>
+  <p class="mute">לכל שלב: סכום, סטטוס תשלום ומסלול חשבונית. כשסטטוס השלב "התקבל בבנק" – הסכום נרשם כתשלום והיתרה יורדת. מע"מ ${Math.round((VAT-1)*100)}%.</p>
+  ${SD.list.map((s,k)=>`<div class="card" style="margin-bottom:8px"><div class="form">
+   <div><label>שלב</label><input value="${esc(s.label)}" list="sl" onchange="SD.list[${k}].label=this.value"></div>
+   <div><label>סכום (₪)</label><input type="number" step="0.01" value="${esc(s.amount)}" onchange="SD.list[${k}].amount=+this.value;drawStages()"></div>
+   <div><label>כולל מע"מ?</label><select onchange="SD.list[${k}].incl=this.value==='1';drawStages()"><option value="0" ${s.incl?"":"selected"}>לא – להוסיף מע"מ</option><option value="1" ${s.incl?"selected":""}>כן – כבר כולל</option></select></div>
+   <div><label>סטטוס תשלום</label>${sel(ST,s.st,k,"st")}</div>
+   <div><label>חשבונית</label>${sel(INV,s.inv,k,"inv")}</div>
+   <div><label>מס' חשבונית</label><input value="${esc(s.invNo||"")}" onchange="SD.list[${k}].invNo=this.value"></div></div>
+   <div class="row" style="margin-top:6px"><span class="mute">לתשלום: <b>${ils(gross(s))}</b></span><button class="sm" style="margin-inline-start:auto" onclick="SD.list.splice(${k},1);drawStages()">הסר שלב</button></div></div>`).join("")||'<div class="empty">אין שלבים. הוסף שלב או בחר תבנית.</div>'}
+  <datalist id="sl"><option value="מקדמה"><option value="תשלום שני (ברישיון)"><option value="תשלום שלישי"><option value="יתרה"></datalist>
+  <div class="row"><button onclick="addStage()">+ שלב</button><button onclick="tpl(2)">תבנית: מקדמה 50% + יתרה ברישיון</button><button onclick="tpl(3)">תבנית: שליש מקדמה</button></div>
+  <p class="mute" style="margin-top:8px">סה"כ לפי השלבים: <b>${ils(SD.list.reduce((a,s)=>a+gross(s),0))}</b></p>
+  <div class="row" style="margin-top:10px"><button class="pri" onclick="saveStages()">שמירה</button><button onclick="close()">ביטול</button></div>`);
+}
+function addStage(){SD.list.push({id:uid(),label:SD.list.length?"תשלום "+(SD.list.length+1):"מקדמה",amount:0,incl:false,st:ST[0],inv:INV[0],invNo:""});drawStages()}
+function tpl(n){const t=+prompt("סכום העסקה הכולל (לפני מע\"מ):");if(!(t>0))return;
+  const mk=(l,a)=>({id:uid(),label:l,amount:Math.round(a*100)/100,incl:false,st:ST[1],inv:INV[0],invNo:""});
+  const r=x=>Math.round(x*100)/100;
+  SD.list=n===2?[mk("מקדמה",t/2),Object.assign(mk("תשלום שני (ברישיון)",t-r(t/2)),{st:ST[0]})]:[mk("מקדמה (שליש)",t/3),Object.assign(mk("תשלום שני",t/3),{st:ST[0]}),Object.assign(mk("תשלום שלישי",t-2*r(t/3)),{st:ST[0]})];drawStages()}
+function saveStages(){
+  const i=get(SD.id);
+  i.stages=SD.list;
+  i.payments=(i.payments||[]).filter(p=>!p.sid);
+  SD.list.filter(s=>s.st==="התקבל בבנק").forEach(s=>i.payments.push({amount:gross(s),date:s.rdate||iso(today()),method:"שלב: "+s.label,sid:s.id}));
+  if(SD.list.length){i.amount=Math.round(SD.list.reduce((a,s)=>a+gross(s),0)*100)/100;i.done=open({...i,done:false})<=0}
+  save();close();render()}
+
 /* ---------- הודעות ---------- */
 function msgFor(i,level){
-  const c=S.cfg,o=overdue(i),amt=i.amount>0?ils(open(i)):"(לפי ההסכם)",inv=i.invoice?` מס' ${i.invoice}`:"";
+  const c=S.cfg,o=overdue(i),cs=curStage(i),amt=cs?`${ils(gross(cs))} (${cs.label})`:i.amount>0?ils(open(i)):"(לפי ההסכם)",inv=i.invoice?` מס' ${i.invoice}`:"";
   const pay=c.bank?`\nפרטי תשלום: ${c.bank}`:"";
   if(level===0)return `שלום ${i.contact||i.customer}, תזכורת ידידותית בנוגע לתשלום עבור ${i.customer}${inv}, על סך ${amt}${i.due?(o?", שהיה אמור להיפרע ב-"+fd(i.due):", שיפרע ב-"+fd(i.due)):""}. אם כבר שולם – תודה והתעלמו מהודעה זו.${pay}\n${c.biz}`;
   if(level===1)return `שלום ${i.contact||i.customer}, פנייה חוזרת בנוגע לתשלום עבור ${i.customer}${inv} על סך ${amt}${o?`, שנמצא בפיגור של ${o} ימים`:""}. נשמח לעדכון על מועד התשלום.${pay}\n${c.biz}`;
@@ -284,7 +346,8 @@ function contact(id){
    <h2>רישום הפנייה</h2><div class="form">
    <div><label>סוג</label><select id="k_ch"><option>שיחה</option><option>וואטסאפ</option><option>מייל</option><option>פגישה</option><option>אין מענה</option></select></div>
    <div><label>הבטחת תשלום עד</label><input id="k_pr" type="date" value="${esc(i.promise||"")}"></div>
-   <div><label>לחזור אליו בתאריך</label><input id="k_nx" type="date" value="${iso(addDays(today(),gap))}"></div></div>
+   <div><label>לחזור אליו בתאריך</label><input id="k_nx" type="date" value="${iso(addDays(today(),gap))}"></div>
+   <div><label>ממתין ל</label><select id="k_wt">${Object.entries(WAIT).map(([k,v])=>`<option value="${k}" ${i.waiting===k?"selected":""}>${v}</option>`).join("")}</select></div></div>
    <div style="margin-top:10px"><label>מה נאמר</label><textarea id="k_note" rows="2"></textarea></div>
    <div class="row" style="margin-top:12px"><button class="pri" onclick="saveContact('${id}')">שמירת פנייה</button><button onclick="close()">סגירה</button></div>
    ${(i.log||[]).length?`<h2 style="margin-top:16px">היסטוריה</h2>${i.log.map(l=>`<div class="log"><span class="mute">${fd(l.d)}</span> ${esc(l.txt)}</div>`).join("")}`:""}`);
@@ -293,7 +356,7 @@ function sendWA(id){const i=get(id);window.open(waLink(i.phone,$("#m_txt").value
 function sendMail(id){const i=get(id);location.href=`mailto:${i.email}?subject=${encodeURIComponent("תזכורת תשלום — חשבונית "+(i.invoice||""))}&body=${encodeURIComponent($("#m_txt").value)}`}
 function saveContact(id){
   const i=get(id);
-  i.promise=$("#k_pr").value;i.next=$("#k_nx").value;
+  i.promise=$("#k_pr").value;i.next=$("#k_nx").value;i.waiting=$("#k_wt").value;
   (i.log??=[]).unshift({d:iso(today()),t:"contact",txt:`${$("#k_ch").value}${$("#k_note").value?": "+$("#k_note").value:""}${i.promise?" · הבטיח עד "+fd(i.promise):""}`});
   save();close();render()}
 function remind(name){
