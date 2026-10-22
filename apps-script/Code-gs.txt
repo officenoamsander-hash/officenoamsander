@@ -75,3 +75,28 @@ function saveItems(json) {
     return {ok: true, count: n};
   } finally { lock.releaseLock(); }
 }
+
+// ---- שאלות לנעם (לשונית נפרדת) ----
+const QTAB = 'שאלות לנעם';
+const qsh_ = () => SpreadsheetApp.openById(SHEET_ID).getSheetByName(QTAB);
+
+function getQuestions() {
+  const sh = qsh_(), last = sh.getLastRow();
+  if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, 7).getValues().filter(r => r[0] && r[2]).map(r => ({
+    id: String(r[0]), date: iso_(r[1]), text: String(r[2]), customer: String(r[3] || ''),
+    status: r[4] === 'נענתה' ? 'נענתה' : 'פתוחה', answer: String(r[5] || ''), adate: iso_(r[6])
+  }));
+}
+
+function saveQuestions(json) {
+  const qs = JSON.parse(json), sh = qsh_(), lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const last = sh.getLastRow();
+    if (qs.length) sh.getRange(2, 1, qs.length, 7).setValues(qs.map(q =>
+      [q.id, toDate_(q.date), q.text, q.customer || '', q.status, q.answer || '', toDate_(q.adate)]));
+    if (last > qs.length + 1) sh.getRange(qs.length + 2, 1, last - qs.length - 1, 7).clearContent();
+    return {ok: true, count: qs.length};
+  } finally { lock.releaseLock(); }
+}

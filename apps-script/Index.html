@@ -64,6 +64,7 @@ h2{font-size:16px;margin:0 0 10px}
     <button data-t="todo" class="on">📌 לטיפול היום</button>
     <button data-t="all">כל החובות</button>
     <button data-t="cust">לפי לקוח</button>
+    <button data-t="q">❓ שאלות לנעם</button>
     <button data-t="dash">סיכום וגיול חובות</button>
     <button data-t="help">הגדרות והסבר</button>
   </div>
@@ -76,7 +77,7 @@ h2{font-size:16px;margin:0 0 10px}
 "use strict";
 /* ---------- אחסון ---------- */
 const KEY="collections.v1";
-let S={items:[],cfg:{biz:'ד"ר נעם סנדר הנדסה ורישוי בע"מ',bank:'',terms:30,gap1:7,gap2:7,gap3:3}};
+let S={items:[],questions:[],cfg:{biz:'ד"ר נעם סנדר הנדסה ורישוי בע"מ',bank:'',terms:30,gap1:7,gap2:7,gap3:3}};
 const SEED=[{"id": "s1", "customer": "מלון מגדלה", "contact": "דניאל", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "הצעת המחיר: 45,000 ₪ + מע\"מ, בתשלומים 30% / 30% / 20% / 20% | תזכורת למחר | תזכורת למחר", "payments": [], "log": []}, {"id": "s2", "customer": "ליקווידיום", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "למצוא הצעת מחיר לגיא גרלניק", "payments": [], "log": []}, {"id": "s3", "customer": "מסעדה חלבית גדרה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 10000, "status": "", "notes": "לשאול את עוז גדרה מי מטפל ולשלם חצי מקדמה | 10,000 ₪ כולל מע\"מ", "payments": [], "log": []}, {"id": "s4", "customer": "פרישמן 42 - טנדס", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "הצעת המחיר: 25,000 ₪ + מע\"מ, שלושה סעיפים | חצי מקדמה", "payments": [], "log": []}, {"id": "s5", "customer": "מלון סטאי - רישוי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s6", "customer": "אבירם לגזיאל", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "נעם צריך לשבת איתו", "payments": [], "log": []}, {"id": "s7", "customer": "איציק הגדול", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "נעם צריך לשבת איתו", "payments": [], "log": []}, {"id": "s8", "customer": "פיצי רמת השרון", "contact": "חיים כהן", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 22000, "status": "", "notes": "לשלם ב 2 צקים אחד עכשיו והשני דחוי", "payments": [], "log": []}, {"id": "s9", "customer": "פיצי עזריאלי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 22000, "status": "", "notes": "כנ״ל", "payments": [], "log": []}, {"id": "s10", "customer": "יוניקו חולון", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 30000, "status": "", "notes": "נתי יוניקו לשאול מה שם החברה הכל בבת אחת | 30,000 ₪ + מע\"מ", "payments": [], "log": []}, {"id": "s11", "customer": "קורון פטיסרי - קיבוץ עברון", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s12", "customer": "מעדני נטלי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "נעם יפגוש אתו לקחת צ׳קים", "payments": [], "log": []}, {"id": "s13", "customer": "קומל ראש העין", "contact": "מתן רוזנברג", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s14", "customer": "ברוסטר צ'יקן עזריאלי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "לדבר איתה שתשלם", "payments": [], "log": []}, {"id": "s15", "customer": "קיבוץ דורות", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "להוציא הצעת מחיר", "payments": [], "log": []}, {"id": "s16", "customer": "פיטמאסטר יהוד", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 35000, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s17", "customer": "פיטמאסטר ראשון לציון", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "לא סוכם הסכום", "payments": [], "log": []}, {"id": "s18", "customer": "שניצל ראש העין", "contact": "ירון", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "הצעת המחיר: 14,000 ₪ + מע\"מ - 10,000 בתחילת העבודה, 4,000 עם קבלת הרישיון", "payments": [], "log": []}, {"id": "s19", "customer": "מיכל אנסקי", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 15000, "status": "", "notes": "15,000 לא נשלחה הצעת מחיר", "payments": [], "log": []}, {"id": "s20", "customer": "קפה מצו חולון", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 7000, "status": "", "notes": "לשלוח הודעה נעם מחכה לחומר", "payments": [], "log": []}, {"id": "s21", "customer": "מסעדת מסקל פלורנטין", "contact": "ארליך זיו לביא", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "9000 ? לא ידוע | בהמתנה", "payments": [], "log": []}, {"id": "s22", "customer": "רשות העתיקות", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "שלחו פתיחת ספק להחזיר את הטפסים | שמולקי מרכוס הצעת מחיר", "payments": [], "log": []}, {"id": "s23", "customer": "אפריקה ישראל", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s24", "customer": "מלון פולי אורבן", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s25", "customer": "מלון אופרה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s26", "customer": "ענק הבשר", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 15000, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s27", "customer": "לחם הכפר - שימוש חורג", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s28", "customer": "דופלקס", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s29", "customer": "מיכל אפשטיין - איטס קונדיטוריה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s30", "customer": "איטס מזנון שינקין", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "", "payments": [], "log": []}, {"id": "s31", "customer": "מפעל בית שאן", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "hold", "notes": "עדיין לא לגבות", "payments": [], "log": []}, {"id": "s40", "customer": "סבסטיאן הרצליה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "quote", "notes": "להוציא הצעת מחיר", "payments": [], "log": []}, {"id": "s41", "customer": "אוגיס רעננה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "quote", "notes": "", "payments": [], "log": []}, {"id": "s42", "customer": "קומל רעננה", "contact": "", "phone": "", "email": "", "invoice": "", "date": "", "due": "", "amount": 0, "status": "", "notes": "אמור לשלם לביולאב – 7,000 ₪; למצוא את החשבונית ולבקש מביולאב", "payments": [], "log": []}];
 let fresh=true;
 try{const r=localStorage.getItem(KEY);if(r){S=Object.assign(S,JSON.parse(r));fresh=false}}catch(e){}
@@ -86,7 +87,8 @@ let saveT=null;
 const setSync=t=>{const e=document.getElementById("sync");if(e)e.textContent=t};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
   if(!GAS)return;setSync("⏳ שומר…");clearTimeout(saveT);
-  saveT=setTimeout(()=>GAS.withSuccessHandler(()=>setSync("✅ נשמר בגיליון")).withFailureHandler(e=>setSync("❌ שמירה נכשלה: "+e.message)).saveItems(JSON.stringify(S.items)),600)};
+  saveT=setTimeout(()=>{const fail=e=>setSync("❌ שמירה נכשלה: "+e.message);
+    GAS.withSuccessHandler(()=>GAS.withSuccessHandler(()=>setSync("✅ נשמר בגיליון")).withFailureHandler(fail).saveQuestions(JSON.stringify(S.questions||[]))).withFailureHandler(fail).saveItems(JSON.stringify(S.items))},600)};
 const uid=()=>Math.random().toString(36).slice(2,10);
 
 /* ---------- עזרים ---------- */
@@ -141,20 +143,22 @@ function flags(i){
   });
   return f;
 }
+const openQ=c=>(S.questions||[]).filter(q=>q.status!=="נענתה"&&(c===undefined||q.customer===c));
+const qDays=q=>Math.max(0,days(today(),pd(q.date)||today()));
 const customers=()=>[...new Set(S.items.map(i=>i.customer))].sort((a,b)=>a.localeCompare(b,"he"));
 
 /* ---------- ניווט ---------- */
 let tab="todo",F={q:"",st:"open",sort:"over"};
 $("#tabs").onclick=e=>{const t=e.target.dataset.t;if(!t)return;tab=t;
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b===e.target));render()};
-function render(){({todo:vTodo,all:vAll,cust:vCust,dash:vDash,help:vHelp})[tab]();}
+function render(){({todo:vTodo,all:vAll,cust:vCust,q:vQ,dash:vDash,help:vHelp})[tab]();}
 
 /* ---------- תצוגות ---------- */
 function rowHTML(i){const[s,c]=status(i);const n=nextAction(i);
   return `<tr><td><b>${esc(i.customer)}</b><div class="mute">${esc([i.contact,i.phone].filter(Boolean).join(" · "))}</div></td>
   <td class="mute" style="max-width:260px">${esc(i.notes||"")}</td><td>${fd(i.due)}</td><td><b>${money(i)}</b>${i.amount>0&&open(i)<i.amount?`<div class="mute">מתוך ${ils(i.amount)}</div>`:""}${(i.stages||[]).length?`<div class="mute">${i.stages.map(x=>esc(x.label)+(x.st==="התקבל בבנק"?" ✔":" …")).join(" · ")}</div>`:""}</td>
-  <td><span class="tag ${c}">${s}</span>${i.waiting?` <span class="tag t-pri">${WAIT[i.waiting]}</span>`:""}${flags(i).map(x=>`<div><span class="tag ${x[1]}">${esc(x[0])}</span></div>`).join("")}</td><td>${n?fd(iso(n)):"—"}</td>
-  <td class="row" style="flex-wrap:nowrap"><button class="sm" onclick="contact('${i.id}')">📞 מעקב</button><button class="sm" onclick="stages('${i.id}')">🧩 שלבים</button><button class="sm" onclick="pay('${i.id}')">💵 שולם</button><button class="sm" onclick="edit('${i.id}')">✏️</button></td></tr>`}
+  <td><span class="tag ${c}">${s}</span>${i.waiting?` <span class="tag t-pri">${WAIT[i.waiting]}</span>`:""}${flags(i).map(x=>`<div><span class="tag ${x[1]}">${esc(x[0])}</span></div>`).join("")}${(()=>{const q=openQ(i.customer);return q.length?`<div><span class="tag ${Math.max(...q.map(qDays))>=3?"t-bad":"t-warn"}">❓ ${q.length} לנעם · ${Math.max(...q.map(qDays))} ימים</span></div>`:""})()}</td><td>${n?fd(iso(n)):"—"}</td>
+  <td class="row" style="flex-wrap:nowrap"><button class="sm" onclick="contact('${i.id}')">📞 מעקב</button><button class="sm" onclick="stages('${i.id}')">🧩 שלבים</button><button class="sm" onclick="askQ('${i.id}')">❓</button><button class="sm" onclick="pay('${i.id}')">💵 שולם</button><button class="sm" onclick="edit('${i.id}')">✏️</button></td></tr>`}
 const THEAD=`<thead><tr><th>לקוח</th><th>הערות</th><th>פירעון</th><th>יתרה</th><th>סטטוס</th><th>מעקב הבא</th><th></th></tr></thead>`;
 
 function vTodo(){
@@ -291,6 +295,33 @@ function savePay(id){const i=get(id),a=+$("#p_amt").value;if(!(a>0))return;
   save();close();render()}
 function delPay(id,k){const i=get(id);i.payments.splice(k,1);i.done=false;save();pay(id);render()}
 
+/* ---------- שאלות לנעם ---------- */
+function vQ(){
+  const o=openQ().sort((a,b)=>(a.date||"").localeCompare(b.date||"")),d=(S.questions||[]).filter(q=>q.status==="נענתה").sort((a,b)=>(b.adate||"").localeCompare(a.adate||""));
+  $("#view").innerHTML=`<div class="card"><h2>❓ שאלות שממתינות לתשובת נעם (${o.length})</h2>
+   <div class="row" style="margin-bottom:10px"><button class="pri sm" onclick="askQ()">+ שאלה חדשה</button><button class="sm" onclick="copyQ()" ${o.length?"":"disabled"}>📋 העתק לוואטסאפ</button></div>
+   ${o.length?`<div class="tw"><table><thead><tr><th>שאלה</th><th>לקוח / נושא</th><th>נשאלה</th><th>ימים ללא מענה</th><th></th></tr></thead><tbody>${o.map(q=>`<tr><td>${esc(q.text)}</td><td>${esc(q.customer||"")}</td><td>${fd(q.date)}</td><td><span class="tag ${qDays(q)>=3?"t-bad":"t-warn"}">${qDays(q)}</span></td><td class="row" style="flex-wrap:nowrap"><button class="sm" onclick="answerQ('${q.id}')">✅ נענתה</button><button class="sm" onclick="delQ('${q.id}')">🗑</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="empty">אין שאלות פתוחות 🎉</div>'}</div>
+   ${d.length?`<div class="card" style="margin-top:12px"><h2>נענו (${d.length})</h2>${d.map(q=>`<div class="log"><b>${esc(q.text)}</b>${q.customer?` <span class="mute">(${esc(q.customer)})</span>`:""}<div>↳ ${esc(q.answer||"")} <span class="mute">${fd(q.adate)}</span></div></div>`).join("")}</div>`:""}`;
+}
+function askQ(itemId){
+  const c=itemId?get(itemId).customer:"";
+  show(`<h2>שאלה לנעם</h2><div class="form"><div><label>לקוח / נושא (לא חובה)</label><input id="q_c" list="cl" value="${esc(c)}"><datalist id="cl">${customers().map(x=>`<option value="${esc(x)}">`).join("")}</datalist></div>
+   <div><label>תאריך</label><input id="q_d" type="date" value="${iso(today())}"></div></div>
+   <div style="margin-top:10px"><label>השאלה</label><textarea id="q_t" rows="3"></textarea></div>
+   <div class="row" style="margin-top:12px"><button class="pri" onclick="saveQ()">שמירה</button><button onclick="close()">ביטול</button></div>`);
+}
+function saveQ(){const t=$("#q_t").value.trim();if(!t)return alert("כתבי את השאלה");
+  (S.questions??=[]).push({id:uid(),text:t,customer:$("#q_c").value.trim(),date:$("#q_d").value||iso(today()),status:"פתוחה",answer:"",adate:""});
+  save();close();render()}
+function answerQ(id){const q=S.questions.find(x=>x.id===id);const a=prompt("מה נעם ענה?\n"+q.text);if(a===null)return;
+  q.status="נענתה";q.answer=a;q.adate=iso(today());
+  const it=S.items.find(i=>i.customer===q.customer);if(it)(it.log??=[]).unshift({d:iso(today()),t:"note",txt:"תשובת נעם: "+(a||"נענה")+" (על: "+q.text+")"});
+  save();render()}
+function delQ(id){if(confirm("למחוק את השאלה?")){S.questions=S.questions.filter(q=>q.id!==id);save();render()}}
+function copyQ(){const o=openQ();
+  const txt="נעם, שאלות שממתינות לתשובה:\n"+o.map((q,k)=>`${k+1}. ${q.customer?q.customer+": ":""}${q.text} (מ-${fd(q.date)})`).join("\n");
+  navigator.clipboard.writeText(txt).then(()=>alert("הועתק"))}
+
 /* ---------- שלבי תשלום ---------- */
 let SD=null;
 function stages(id){const i=get(id);SD={id,list:JSON.parse(JSON.stringify(i.stages||[]))};drawStages()}
@@ -409,7 +440,7 @@ $("#bBak").onclick=()=>dl(`גיבוי-גבייה-${iso(today())}.json`,JSON.stri
 $("#bExp").onclick=()=>{const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
   dl(`גבייה-${iso(today())}.csv`,"﻿"+["לקוח,טלפון,אימייל,חשבונית,תאריך,פירעון,סכום,שולם,יתרה,ימי פיגור"].concat(S.items.map(i=>[i.customer,i.phone,i.email,i.invoice,i.date,i.due,i.amount,i.amount-open(i),open(i),overdue(i)].map(q).join(","))).join("\n"),"text/csv")};
 
-if(GAS){setSync("⏳ טוען מהגיליון…");GAS.withSuccessHandler(items=>{S.items=items;setSync("✅ מחובר לגיליון");render()}).withFailureHandler(e=>setSync("❌ טעינה נכשלה: "+e.message)).getItems()}
+if(GAS){setSync("⏳ טוען מהגיליון…");GAS.withSuccessHandler(items=>{S.items=items;GAS.withSuccessHandler(q=>{S.questions=q;setSync("✅ מחובר לגיליון");render()}).withFailureHandler(e=>setSync("❌ טעינת שאלות נכשלה: "+e.message)).getQuestions()}).withFailureHandler(e=>setSync("❌ טעינה נכשלה: "+e.message)).getItems()}
 render();
 </script>
 </body>
