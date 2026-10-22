@@ -65,6 +65,7 @@ h2{font-size:16px;margin:0 0 10px}
     <button data-t="all">כל החובות</button>
     <button data-t="cust">לפי לקוח</button>
     <button data-t="q">❓ שאלות לנעם</button>
+    <button data-t="bank">🏦 דף בנק</button>
     <button data-t="dash">סיכום וגיול חובות</button>
     <button data-t="help">הגדרות והסבר</button>
   </div>
@@ -151,7 +152,7 @@ const customers=()=>[...new Set(S.items.map(i=>i.customer))].sort((a,b)=>a.local
 let tab="todo",F={q:"",st:"open",sort:"over"};
 $("#tabs").onclick=e=>{const t=e.target.dataset.t;if(!t)return;tab=t;
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b===e.target));render()};
-function render(){({todo:vTodo,all:vAll,cust:vCust,q:vQ,dash:vDash,help:vHelp})[tab]();}
+function render(){({todo:vTodo,all:vAll,cust:vCust,q:vQ,bank:vBank,dash:vDash,help:vHelp})[tab]();}
 
 /* ---------- תצוגות ---------- */
 function rowHTML(i){const[s,c]=status(i);const n=nextAction(i);
@@ -322,6 +323,72 @@ function copyQ(){const o=openQ();
   const txt="נעם, שאלות שממתינות לתשובה:\n"+o.map((q,k)=>`${k+1}. ${q.customer?q.customer+": ":""}${q.text} (מ-${fd(q.date)})`).join("\n");
   navigator.clipboard.writeText(txt).then(()=>alert("הועתק"))}
 
+/* ---------- דף בנק (מזרחי טפחות, ייצוא xls שהוא טבלת HTML) ---------- */
+let BK=null;
+function parseBank(text){
+  const doc=new DOMParser().parseFromString(text,"text/html"),out=[];
+  doc.querySelectorAll("tr").forEach(tr=>{
+    const c=[...tr.children].map(x=>x.textContent.replace(/\s+/g," ").trim());
+    const m=c[0]&&c[0].match(/^(\d\d)\/(\d\d)\/(\d\d)$/);
+    if(!m||c.length<7)return;
+    const n=s=>parseFloat((s||"").replace(/,/g,""))||0;
+    if(n(c[3])>0)out.push({date:`20${m[3]}-${m[2]}-${m[1]}`,desc:c[2],amount:n(c[3]),ref:c[6]||"",key:`${m[3]}${m[2]}${m[1]}|${c[6]}|${n(c[3])}`});
+  });
+  return out;
+}
+function bankCands(t){
+  const c=[];
+  S.items.forEach(i=>{
+    if(i.status||!isOpen(i))return;
+    (i.stages||[]).forEach(s=>{if(s.st!=="התקבל בבנק"&&Math.abs(gross(s)-t.amount)<0.01)c.push({i,sid:s.id,label:s.label,note:""})});
+    if(!(i.stages||[]).length&&i.amount>0){
+      if(Math.abs(open(i)-t.amount)<0.01)c.push({i,sid:null,label:"חוב",note:""});
+      else if(Math.abs(open(i)*VAT-t.amount)<0.01)c.push({i,sid:null,label:"חוב (הסכום בגיליון ללא מע\"מ?)",note:"לא כולל מע\"מ"});
+    }
+  });
+  return c;
+}
+function bankAlready(t){
+  return S.items.find(i=>(i.payments||[]).some(p=>p.bankRef===t.key||(!p.bankRef&&Math.abs(p.amount-t.amount)<0.01&&Math.abs(days(pd(p.date)||today(),pd(t.date)))<=4)));
+}
+function vBank(){
+  $("#view").innerHTML=`<div class="card"><h2>🏦 עדכון מדף בנק</h2>
+   <p class="mute">ייצוא תנועות מבנק מזרחי טפחות (קובץ xls כפי שהורד מהבנק). הקובץ נקרא בדפדפן בלבד ולא נשמר. נבדקים רק זיכויים (כספים שנכנסו), והם מותאמים לשלבי תשלום פתוחים לפי סכום כולל מע"מ. שום דבר לא מתעדכן בלי אישורך.</p>
+   <input type="file" id="bkf" accept=".xls,.xlsx,.html,.htm,.csv"><div id="bkr" style="margin-top:12px"></div></div>`;
+  $("#bkf").onchange=async e=>{const f=e.target.files[0];if(!f)return;const rows=parseBank(await f.text());
+    if(!rows.length){$("#bkr").innerHTML='<div class="empty">לא נמצאו זיכויים בקובץ. יש להעלות את הקובץ כפי שהורד מהבנק (xls) בלי לשמור אותו מחדש ב-Excel.</div>';return}
+    BK=rows.sort((a,b)=>b.date.localeCompare(a.date)).map(t=>{const done=bankAlready(t),c=done?[]:bankCands(t);
+      const hit=c.filter(x=>(t.desc||"").includes(x.i.customer)||(x.i.company&&t.desc.includes(x.i.company)));
+      return {t,done,c:hit.length===1?hit:c,pick:(hit.length===1||(c.length===1&&!c[0].note))?0:-1}});
+    drawBank()};
+}
+function drawBank(){
+  const m=BK.filter(x=>!x.done&&x.c.length),u=BK.filter(x=>!x.done&&!x.c.length),d=BK.filter(x=>x.done);
+  const opt=x=>x.c.map((c,k)=>`<option value="${k}" ${x.pick===k?"selected":""}>${esc(c.i.customer)} – ${esc(c.label)}</option>`).join("");
+  $("#bkr").innerHTML=`<p><b>${BK.length}</b> זיכויים בקובץ · <b>${m.length}</b> עם התאמה אפשרית · ${d.length} כבר רשומים · ${u.length} ללא התאמה</p>
+  ${m.length?`<h2>התאמות מוצעות</h2><div class="tw"><table><thead><tr><th>תאריך</th><th>סכום</th><th>תיאור בבנק</th><th>מוצע</th></tr></thead><tbody>${m.map((x)=>`<tr><td>${fd(x.t.date)}</td><td><b>${ils(x.t.amount)}</b></td><td>${esc(x.t.desc)}<div class="mute">אסמכתא ${esc(x.t.ref)}</div></td>
+   <td><select onchange="BK[${BK.indexOf(x)}].pick=+this.value"><option value="-1">לא לעדכן</option>${opt(x)}</select>${x.c.length>1?'<div class="mute">יש כמה אפשרויות – נא לבחור</div>':""}</td></tr>`).join("")}</tbody></table></div>
+  <p><button class="pri" onclick="applyBank()">עדכון הנבחרים</button></p>`:""}
+  ${u.length?`<h2 style="margin-top:14px">זיכויים ללא התאמה לחוב פתוח (${u.length})</h2><div class="tw"><table><tbody>${u.map(x=>`<tr><td>${fd(x.t.date)}</td><td>${ils(x.t.amount)}</td><td>${esc(x.t.desc)}</td></tr>`).join("")}</tbody></table></div>`:""}
+  ${d.length?`<p class="mute" style="margin-top:10px">כבר רשומים בגבייה: ${d.map(x=>fd(x.t.date)+" "+ils(x.t.amount)).join(" · ")}</p>`:""}`;
+}
+function recalc(i){
+  const st=i.stages||[];
+  if(!st.length)return;
+  i.payments=(i.payments||[]).filter(p=>!p.sid);
+  st.filter(s=>s.st==="התקבל בבנק").forEach(s=>i.payments.push({amount:gross(s),date:s.rdate||iso(today()),method:"שלב: "+s.label,sid:s.id,bankRef:s.bankRef||""}));
+  i.amount=Math.round(st.reduce((a,s)=>a+gross(s),0)*100)/100;i.done=open({...i,done:false})<=0;
+}
+function applyBank(){
+  let n=0,skip=0;
+  BK.forEach(x=>{if(x.pick<0||x.done||!x.c[x.pick])return;const c=x.c[x.pick],i=c.i;
+    const s0=c.sid&&i.stages.find(s=>s.id===c.sid);
+    if(c.sid?(!s0||s0.st==="התקבל בבנק"):(!isOpen(i)||x.t.amount>open(i)*(c.note?VAT:1)+0.01)){skip++;return}
+    if(c.sid){const s=s0;s.st="התקבל בבנק";s.rdate=x.t.date;s.bankRef=x.t.key;recalc(i)}
+    else{(i.payments??=[]).push({amount:x.t.amount,date:x.t.date,method:"בנק",bankRef:x.t.key});if(open(i)<=0)i.done=true}
+    (i.log??=[]).unshift({d:x.t.date,t:"payment",txt:`נקלט בבנק ${ils(x.t.amount)} (אסמכתא ${x.t.ref})`});x.done=true;n++});
+  save();render();alert(n?`עודכנו ${n} תשלומים`+(skip?` · דולגו ${skip} (החוב כבר נסגר)`:""):"לא נבחר דבר")}
+
 /* ---------- שלבי תשלום ---------- */
 let SD=null;
 function stages(id){const i=get(id);SD={id,list:JSON.parse(JSON.stringify(i.stages||[]))};drawStages()}
@@ -352,7 +419,7 @@ function saveStages(){
   const i=get(SD.id);
   i.stages=SD.list;
   i.payments=(i.payments||[]).filter(p=>!p.sid);
-  SD.list.filter(s=>s.st==="התקבל בבנק").forEach(s=>i.payments.push({amount:gross(s),date:s.rdate||iso(today()),method:"שלב: "+s.label,sid:s.id}));
+  SD.list.filter(s=>s.st==="התקבל בבנק").forEach(s=>i.payments.push({amount:gross(s),date:s.rdate||iso(today()),method:"שלב: "+s.label,sid:s.id,bankRef:s.bankRef||""}));
   if(SD.list.length){i.amount=Math.round(SD.list.reduce((a,s)=>a+gross(s),0)*100)/100;i.done=open({...i,done:false})<=0}
   save();close();render()}
 
